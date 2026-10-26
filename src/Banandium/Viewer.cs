@@ -71,6 +71,7 @@ public sealed partial class Viewer : GameWindow
         ui = new ImGuiController(this);
         renderer = new SceneRenderer();
         modelRenderer = new ModelRenderer();
+        RestoreSettings();
         CheckForUpdates();
         if (arguments.Length > 0 && !arguments[0].StartsWith("--"))
         {
@@ -80,6 +81,10 @@ public sealed partial class Viewer : GameWindow
             }
 
             OpenDump(arguments[0]);
+        }
+        else if (Directory.Exists(settings.RomfsPath))
+        {
+            OpenDump(settings.RomfsPath);
         }
 
         Console.WriteLine($"OpenGL {GL.GetString(StringName.Version)} / {GL.GetString(StringName.Renderer)}");
@@ -145,6 +150,8 @@ public sealed partial class Viewer : GameWindow
             try
             {
                 dump = indexing.GetAwaiter().GetResult();
+                settings.RomfsPath = Path.GetFullPath(pendingDumpPath);
+                RememberSceneSettings();
                 scene = null;
                 models = null;
                 modelRenderer.Upload(null);
@@ -182,6 +189,11 @@ public sealed partial class Viewer : GameWindow
             try
             {
                 SceneData loadedScene = loading.GetAwaiter().GetResult();
+                RememberSceneSettings();
+                loadedScene.Conditions.UnconditionalOnly = settings.UnconditionalOnly;
+                loadedScene.Conditions.Apply();
+                RestoreLayerSettings(loadedScene.ActorCollision);
+                foreach (SceneLayer layer in loadedScene.AreaLayers) RestoreLayerSettings(layer);
                 renderer.Upload(loadedScene);
                 scene = loadedScene;
                 models = null;
@@ -265,7 +277,6 @@ public sealed partial class Viewer : GameWindow
         cameraYaw = -135;
         cameraPitch = -25;
         cameraPosition = center - GetCameraDirection() * radius * 2;
-        cameraSpeed = Math.Max(5, radius * 0.25f);
     }
 
     private Vector3 GetCameraDirection()
@@ -844,6 +855,7 @@ public sealed partial class Viewer : GameWindow
 
     protected override void OnUnload()
     {
+        SaveSettings();
         ReleaseMouse();
         renderer.Dispose();
         modelRenderer.Dispose();

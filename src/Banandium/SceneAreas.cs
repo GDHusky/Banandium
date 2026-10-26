@@ -97,8 +97,8 @@ public static class SceneAreas
                 {
                     SceneArea candidate = areas[other];
                     if (!candidate.IsIgnore || candidate.Family != area.Family) continue;
-                    if (conditions != null && candidate.Object.IsConditional &&
-                        (!conditions.Preview || conditions.Evaluate(candidate.Object) != ConditionState.Active)) continue;
+                    if (conditions != null && candidate.Object.HasConditions &&
+                        conditions.Evaluate(candidate.Object) != ConditionState.Active) continue;
 
                     //higher priority wins
                     if (candidate.Priority > area.Priority ||
