@@ -60,7 +60,7 @@ public sealed class AreaCutout
         }
     }
 
-    public void Apply(MeshData mesh, bool keepSharedBoundary = false)
+    public void Apply(MeshData mesh, bool keepSharedBoundary = false, bool keepTouchingFaces = true)
     {
         MeshData result = new MeshData();
         for (int triangle = 0; triangle < mesh.Vertices.Count; triangle += 3)
@@ -75,8 +75,10 @@ public sealed class AreaCutout
             foreach (Plane plane in planes)
             {
                 Vector3 faceNormal = Vector3.Cross(inside[1] - inside[0], inside[2] - inside[0]);
-                if (keepSharedBoundary && IsOnPlane(inside, plane) &&
-                    Vector3.Dot(faceNormal, plane.Normal) * inverse.GetDeterminant() > 0)
+                //touching volumes do not cut a hole in their shared face
+                float facing = Vector3.Dot(faceNormal, plane.Normal) * inverse.GetDeterminant();
+                if (IsOnPlane(inside, plane) &&
+                    ((keepTouchingFaces && facing < 0) || (keepSharedBoundary && facing > 0)))
                 {
                     separate = true;
                     break;
@@ -215,7 +217,7 @@ public sealed class AreaCutout
                 if (other != index)
                 {
                     //keep shared faces only on the first cutter that owns them
-                    cutouts[other].Apply(walls, other > index);
+                    cutouts[other].Apply(walls, other > index, false);
                 }
             }
 

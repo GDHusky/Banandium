@@ -23,6 +23,7 @@ public sealed class SceneArea
     public string Name { get; }
     public string Family { get; }
     public bool IsIgnore { get; }
+    public int Priority { get; }
     public Dictionary<string, object?> Fields { get; }
     public AreaCutout Shape { get; }
     public MeshData Mesh { get; set; } = new MeshData();
@@ -34,6 +35,7 @@ public sealed class SceneArea
         Fields = fields;
         Shape = shape;
         IsIgnore = fields.GetValueOrDefault("IsIgnoreArea") is true;
+        Priority = Convert.ToInt32(fields.GetValueOrDefault("Priority", -1));
     }
 }
 
@@ -74,8 +76,9 @@ public static class SceneAreas
     public static List<SceneLayer> Build(List<SceneArea> areas)
     {
         var layers = new SortedDictionary<string, SceneLayer>(StringComparer.Ordinal);
-        foreach (SceneArea area in areas)
+        for (int index = 0; index < areas.Count; index++)
         {
+            SceneArea area = areas[index];
             if (!layers.TryGetValue(area.Name, out SceneLayer? layer))
             {
                 layer = new SceneLayer(area.Name, GetColor(area.Family));
@@ -88,9 +91,17 @@ public static class SceneAreas
             List<AreaCutout> cutouts = new List<AreaCutout>();
             if (area.Family == "DeathArea" || area.Family == "WaterArea")
             {
-                foreach (SceneArea candidate in areas)
+                for (int other = 0; other < areas.Count; other++)
                 {
-                    if (candidate.IsIgnore && candidate.Family == area.Family) cutouts.Add(candidate.Shape);
+                    SceneArea candidate = areas[other];
+                    if (!candidate.IsIgnore || candidate.Family != area.Family) continue;
+
+                    //higher priority wins, with later placements winning ties
+                    if (candidate.Priority > area.Priority ||
+                        (candidate.Priority == area.Priority && other > index))
+                    {
+                        cutouts.Add(candidate.Shape);
+                    }
                 }
             }
             area.Mesh = area.Shape.Subtract(cutouts);

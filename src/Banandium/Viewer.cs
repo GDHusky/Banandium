@@ -468,7 +468,7 @@ public sealed class Viewer : GameWindow
                     ImGui.TextWrapped(field.Key + ": " + FormatAreaField(field.Value));
                 }
             }
-            ImGui.TextWrapped("Authored placement. Switch states and priorities are not simulated.");
+            ImGui.TextWrapped("Authored placement. Switch states are not simulated.");
         }
         ImGui.End();
     }
