@@ -33,7 +33,7 @@ public sealed class MeshData
         var visible = new List<Vector3>();
         foreach (MeshPart part in Parts)
         {
-            if (part.Object.Hidden) continue;
+            if (!part.Object.Visible) continue;
             for (int i = part.First; i < part.First + part.Count; i++)
                 visible.Add(Vertices[i]);
         }
@@ -157,6 +157,8 @@ public sealed class SceneData
     public int IgnoreAreaCount { get; set; }
     public List<SceneLayer> AreaLayers { get; set; } = new List<SceneLayer>();
     public SceneLayer ActorCollision { get; } = new SceneLayer("Actor collision", new Vector3(1, .65f, .15f)) { Mode = DisplayMode.SemiTransparent };
+    public SceneConditions Conditions { get; set; } = new SceneConditions();
+    public List<SceneArea> Areas { get; set; } = new List<SceneArea>();
     public int CollisionActors { get; set; }
     public int UnsupportedActorShapes { get; set; }
 

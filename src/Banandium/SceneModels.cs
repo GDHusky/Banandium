@@ -24,7 +24,7 @@ public sealed record ModelInstance(ModelMesh Mesh, Matrix4x4 Transform, Vector4?
 {
     public float HitDistance(Vector3 origin, Vector3 direction)
     {
-        if (Object.Hidden) return float.PositiveInfinity;
+        if (!Object.Visible) return float.PositiveInfinity;
         Matrix4x4.Invert(Transform, out Matrix4x4 inverse);
         return Mesh.Picking.HitDistance(Vector3.Transform(origin, inverse), Vector3.TransformNormal(direction, inverse));
     }
@@ -71,7 +71,7 @@ public sealed class SceneModels
                 if (transform.GetDeterminant() == 0) continue;
                 string material = materialPresets.Resolve(entry);
                 Vector4? color = material == "" ? null : actorMaterials.ReadColor(material);
-                var item = new SceneObject(actor);
+                var item = new SceneObject(actor, entry);
                 foreach (ModelMesh mesh in meshes) Instances.Add(new ModelInstance(mesh, transform, color, item));
             }
         }

@@ -25,12 +25,14 @@ public sealed class SceneArea
     public bool IsIgnore { get; }
     public int Priority { get; }
     public Dictionary<string, object?> Fields { get; }
+    public SceneObject Object { get; set; }
     public AreaCutout Shape { get; }
     public MeshData Mesh { get; set; } = new MeshData();
 
     public SceneArea(string name, string family, Dictionary<string, object?> fields, AreaCutout shape)
     {
         Name = name;
+        Object = new SceneObject(name, fields) { Area = this };
         Family = family;
         Fields = fields;
         Shape = shape;
@@ -73,7 +75,7 @@ public static class SceneAreas
         }
     }
 
-    public static List<SceneLayer> Build(List<SceneArea> areas)
+    public static List<SceneLayer> Build(List<SceneArea> areas, SceneConditions? conditions = null)
     {
         var layers = new SortedDictionary<string, SceneLayer>(StringComparer.Ordinal);
         for (int index = 0; index < areas.Count; index++)
@@ -95,8 +97,10 @@ public static class SceneAreas
                 {
                     SceneArea candidate = areas[other];
                     if (!candidate.IsIgnore || candidate.Family != area.Family) continue;
+                    if (conditions != null && candidate.Object.IsConditional &&
+                        (!conditions.Preview || conditions.Evaluate(candidate.Object) != ConditionState.Active)) continue;
 
-                    //higher priority wins, with later placements winning ties
+                    //higher priority wins
                     if (candidate.Priority > area.Priority ||
                         (candidate.Priority == area.Priority && other > index))
                     {
@@ -107,7 +111,7 @@ public static class SceneAreas
             area.Mesh = area.Shape.Subtract(cutouts);
             int first = layer.Mesh.Vertices.Count;
             layer.Mesh.Vertices.AddRange(area.Mesh.Vertices);
-            var item = new SceneObject(area.Name) { Area = area };
+            SceneObject item = area.Object;
             layer.Mesh.Parts.Add(new MeshPart(layer.Mesh, first, area.Mesh.Vertices.Count, item));
         }
         return new List<SceneLayer>(layers.Values);

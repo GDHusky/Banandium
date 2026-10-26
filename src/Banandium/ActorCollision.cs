@@ -16,7 +16,7 @@ public sealed class ActorCollision
         this.dump = dump;
     }
 
-    public void Load(Dictionary<string, object?> scenario)
+    public void Load(Dictionary<string, object?> scenario, SceneConditions? conditions = null)
     {
         foreach (string list in new[] { "ObjectList", "PlacementList" })
         {
@@ -33,7 +33,9 @@ public sealed class ActorCollision
                 if (transform.GetDeterminant() == 0) continue;
                 int first = Mesh.Vertices.Count;
                 Append(Mesh, mesh, transform);
-                Mesh.Parts.Add(new MeshPart(Mesh, first, Mesh.Vertices.Count - first, new SceneObject(actor)));
+                SceneObject item = conditions == null ? new SceneObject(actor, entry) : conditions.Register(entry);
+                item.HasCollision = true;
+                Mesh.Parts.Add(new MeshPart(Mesh, first, Mesh.Vertices.Count - first, item));
                 LoadedActors++;
             }
         }

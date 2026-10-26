@@ -115,7 +115,7 @@ public sealed class ModelRenderer : IDisposable
         GL.Uniform1(GL.GetUniformLocation(program, "opacity"), 1);
         foreach (ModelInstance instance in scene.Instances)
         {
-            if (instance.Object.Hidden) continue;
+            if (!instance.Object.Visible) continue;
             ModelMesh mesh = instance.Mesh;
             Vector4 tint = mesh.Tint;
             if (mesh.UsePlacementColor && instance.MaterialColor.HasValue) tint = instance.MaterialColor.Value;

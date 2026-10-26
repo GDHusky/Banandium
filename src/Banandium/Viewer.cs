@@ -7,7 +7,7 @@ using System.Numerics;
 using Keys = OpenTK.Windowing.GraphicsLibraryFramework.Keys;
 
 namespace Banandium;
-public sealed class Viewer : GameWindow
+public sealed partial class Viewer : GameWindow
 {
     private ImGuiController ui = null !;
     private SceneRenderer renderer = null !;
@@ -151,6 +151,9 @@ public sealed class Viewer : GameWindow
                 selectedArea = null;
                 selectedObject = null;
                 hiddenObjects.Clear();
+                inspectedObject = null;
+                highlightedObject = null;
+                showConditions = false;
                 showAreaDetails = false;
                 selectedScene = "";
                 sceneFilter = "";
@@ -187,6 +190,9 @@ public sealed class Viewer : GameWindow
                 selectedArea = null;
                 selectedObject = null;
                 hiddenObjects.Clear();
+                inspectedObject = null;
+                highlightedObject = null;
+                showConditions = false;
                 showAreaDetails = false;
                 PlaceCameraAtScene();
                 Title = "Banandium - " + scene.Name;
@@ -204,6 +210,7 @@ public sealed class Viewer : GameWindow
             try
             {
                 models = modelLoading.GetAwaiter().GetResult();
+                AttachModelConditions();
                 modelRenderer.Upload(models);
             }
             catch (Exception exception)
@@ -443,6 +450,14 @@ public sealed class Viewer : GameWindow
                 }
             }
         }
+        foreach (SceneObject item in scene.Conditions.Objects.Values)
+        {
+            if (item.Hidden || item.Filtered || !ShowConditionOutline(item) || (!item.Inactive && item.HasBounds && item.Area?.IsIgnore != true)) continue;
+            Vector3 low = item.HasBounds ? item.Minimum : item.Position - new Vector3(2);
+            Vector3 high = item.HasBounds ? item.Maximum : item.Position + new Vector3(2);
+            float distance = HitBounds(low, high, origin, direction);
+            if (distance < nearest) { nearest = distance; found = item; }
+        }
         return found;
     }
 
@@ -453,7 +468,9 @@ public sealed class Viewer : GameWindow
         {
             ImGui.TextUnformatted(selectedObject.Name);
             ImGui.Separator();
+            DrawSelectedSwitch();
             if (ImGui.MenuItem("Hide")) HideObject(selectedObject);
+            if (ImGui.MenuItem("Conditions")) InspectObject(selectedObject);
             if (selectedObject.Area != null && ImGui.MenuItem("Area details"))
             {
                 selectedArea = selectedObject.Area;
@@ -466,6 +483,7 @@ public sealed class Viewer : GameWindow
     private void HideObject(SceneObject item)
     {
         item.Hidden = true;
+        if (highlightedObject == item) highlightedObject = null;
         hiddenObjects.Add(item);
         if (item.Area == selectedArea) showAreaDetails = false;
         if (scene != null) renderer.Upload(scene);
@@ -524,7 +542,8 @@ public sealed class Viewer : GameWindow
                     ImGui.TextWrapped(field.Key + ": " + FormatAreaField(field.Value));
                 }
             }
-            ImGui.TextWrapped("Authored placement. Switch states are not simulated.");
+            ImGui.TextWrapped("Authored placement. Use Conditions for switch preview and links.");
+            if (ImGui.Button("Conditions")) InspectObject(selectedArea.Object);
         }
         ImGui.End();
     }
@@ -591,6 +610,9 @@ public sealed class Viewer : GameWindow
             }
 
             if (ImGui.MenuItem("Unhide all", "", false, hiddenObjects.Count > 0)) UnhideAll();
+            DrawConditionMenu();
+            if (ImGui.MenuItem("Conditional outlines", "", conditionalOutlinesVisible))
+                conditionalOutlinesVisible = !conditionalOutlinesVisible;
             ImGui.Separator();
             if (ImGui.MenuItem("Textured models", "", modelsVisible, scene != null && !busy))
             {
@@ -797,6 +819,7 @@ public sealed class Viewer : GameWindow
         PickObject();
         DrawObjectMenu();
         DrawAreaDetails();
+        DrawConditionWindows();
         GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
         GL.ClearColor(0, 0, 0, 1);
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
@@ -805,6 +828,7 @@ public sealed class Viewer : GameWindow
         Matrix4x4 projection = CreateProjection();
         if (modelsVisible) modelRenderer.Draw(view * projection);
         renderer.Draw(view * projection, cameraPosition, forward, collisionMode, collisionShaded);
+        DrawConditionOutlines(view * projection);
         ui.End();
         SwapBuffers();
     }

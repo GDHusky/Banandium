@@ -146,6 +146,7 @@ public sealed class Dump
         int areaCount = 0;
         int ignoredCount = 0;
         var actorCollision = new ActorCollision(this);
+        var conditions = new SceneConditions();
         string? placementPath = Resolve($"StageData/{stageName}.alsarc.zs");
         if (placementPath != null)
         {
@@ -153,7 +154,8 @@ public sealed class Dump
             byte[] data = archive[stageName + ".byml"];
             var scenarios = (List<object?>)new Byml(data).Read()!;
             var scenario = (Dictionary<string, object?>)scenarios[scenarioIndex]!;
-            actorCollision.Load(scenario);
+            conditions = new SceneConditions(scenario);
+            actorCollision.Load(scenario, conditions);
             if (scenario.TryGetValue("AreaList", out object? list))
             {
                 foreach (object? value in (List<object?>)list!)
@@ -178,6 +180,9 @@ public sealed class Dump
                         continue;
                     }
                     var area = new SceneArea(objectName, family, entry, new AreaCutout(model, transform));
+                    area.Object = conditions.Register(entry);
+                    area.Object.Area = area;
+                    foreach (Vector3 point in area.Shape.CreateSurface().Vertices) area.Object.Include(point);
                     areas.Add(area);
                     if (family == "DeathArea")
                     {
@@ -192,7 +197,8 @@ public sealed class Dump
             }
         }
 
-        List<SceneLayer> layers = SceneAreas.Build(areas);
+        conditions.Apply();
+        List<SceneLayer> layers = SceneAreas.Build(areas, conditions);
         foreach (SceneLayer layer in layers)
         {
             if (SceneAreas.GetFamily(layer.Name) == "DeathArea")
@@ -211,6 +217,8 @@ public sealed class Dump
         var result = new SceneData(name, collision, death, areaCount)
         {
             AreaLayers = layers,
+            Areas = areas,
+            Conditions = conditions,
             IgnoreAreas = ignoredAreas,
             IgnoreAreaCount = ignoredCount,
             CollisionActors = actorCollision.LoadedActors,
