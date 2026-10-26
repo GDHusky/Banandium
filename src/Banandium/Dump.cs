@@ -116,7 +116,7 @@ public sealed class Dump
         return new Vector3(Convert.ToSingle(vector["X"]), Convert.ToSingle(vector["Y"]), Convert.ToSingle(vector["Z"]));
     }
 
-    private static Matrix4x4 ReadTransform(Dictionary<string, object?> entry)
+    public static Matrix4x4 ReadTransform(Dictionary<string, object?> entry)
     {
         Vector3 rotation = ReadVector(entry, "Rotate", Vector3.Zero) * (MathF.PI / 180);
         Vector3 scale = ReadVector(entry, "Scale", Vector3.One);
@@ -212,5 +212,19 @@ public sealed class Dump
             IgnoreAreas = ignoredAreas,
             IgnoreAreaCount = ignoredCount
         };
+    }
+
+    public SceneModels LoadModels(string name)
+    {
+        Match match = Regex.Match(name, @"^(.*)Scenario(\d+)$");
+        string stage = match.Groups[1].Value;
+        int scenario = int.Parse(match.Groups[2].Value) - 1;
+        var models = new SceneModels(this, name);
+        string? path = Resolve($"StageData/{stage}.alsarc.zs");
+        if (path == null) return models;
+        Dictionary<string, byte[]> archive = Bytes.Sarc(Bytes.Read(path));
+        var scenarios = (List<object?>)new Byml(archive[stage + ".byml"]).Read()!;
+        models.Load((Dictionary<string, object?>)scenarios[scenario]!);
+        return models;
     }
 }

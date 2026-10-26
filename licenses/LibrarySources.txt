@@ -46,6 +46,30 @@ OpenTK aliases added for the WinForms host, four unused fields removed,
 and renderer device resources released during shutdown
 The adapter uses client coordinates and framebuffer scale for high-DPI windows
 
+BfresLibrary 1.6.0
+Authors: KillzXGaming and Syroot, updated by ArchLeaders
+License: BfresLibrary.txt (MIT)
+Source: https://github.com/KillzXGaming/BfresLibrary
+Revision: 29c05602e6e8ce8f0b53bfc858f63ae6d9a50f74
+Used unmodified through NuGet, including its bundled Syroot.BinaryData,
+Syroot.Maths, and Syroot.NintenTools.NSW.Bntx assemblies (MIT, Syroot)
+The viewer adapts Ounce texture tiling before calling the library deswizzler
+
+AssetRipper.TextureDecoder 2.6.3
+Author: ds5678
+License: TextureDecoder.txt (MIT)
+Additional notices: TextureDecoder-bcdec.md and TextureDecoder-uTinyRipper.md
+Source: https://github.com/AssetRipper/TextureDecoder
+Revision: 13b4f6ee4906877402ab69fc5a0b51b83c15db44
+Used unmodified through NuGet
+
+Newtonsoft.Json 13.0.3
+Author: James Newton-King
+License: Newtonsoft.Json.md (MIT)
+Source: https://github.com/JamesNK/Newtonsoft.Json
+Revision: 0a2e291c0d9c0c7675d445703e51750363a549ef
+Transitive dependency of BfresLibrary
+
 The NuGet package references in src/Banandium/Banandium.csproj select these
 versions; packages.lock.json records resolved transitive dependencies
 Build the viewer with dotnet build Banandium.sln -c Release

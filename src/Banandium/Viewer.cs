@@ -12,6 +12,10 @@ public sealed class Viewer : GameWindow
 {
     private ImGuiController ui = null !;
     private SceneRenderer renderer = null !;
+    private ModelRenderer modelRenderer = null!;
+    private SceneModels? models;
+    private Task<SceneModels>? modelLoading;
+    private bool modelsVisible;
     private Dump? dump;
     private SceneData? scene;
     private Task<Dump>? indexing;
@@ -67,6 +71,7 @@ public sealed class Viewer : GameWindow
         VSync = VSyncMode.On;
         ui = new ImGuiController(this);
         renderer = new SceneRenderer();
+        modelRenderer = new ModelRenderer();
         CheckForUpdates();
         if (arguments.Length > 0 && !arguments[0].StartsWith("--"))
         {
@@ -95,7 +100,7 @@ public sealed class Viewer : GameWindow
 
     private void LoadScene(string name)
     {
-        if (dump == null || loading != null)
+        if (dump == null || loading != null || modelLoading != null)
         {
             return;
         }
@@ -110,6 +115,17 @@ public sealed class Viewer : GameWindow
         return dump!.Load(pendingSceneName);
     }
 
+    private void LoadModels()
+    {
+        if (scene != null && models == null && modelLoading == null)
+            modelLoading = Task.Run(ReadModels);
+    }
+
+    private SceneModels ReadModels()
+    {
+        return dump!.LoadModels(scene!.Name);
+    }
+
     private void CheckLoadingTasks()
     {
         if (indexing != null && indexing.IsCompleted)
@@ -118,6 +134,8 @@ public sealed class Viewer : GameWindow
             {
                 dump = indexing.GetAwaiter().GetResult();
                 scene = null;
+                models = null;
+                modelRenderer.Upload(null);
                 selectedArea = null;
                 showAreaDetails = false;
                 selectedScene = "";
@@ -149,6 +167,9 @@ public sealed class Viewer : GameWindow
                 SceneData loadedScene = loading.GetAwaiter().GetResult();
                 renderer.Upload(loadedScene);
                 scene = loadedScene;
+                models = null;
+                modelRenderer.Upload(null);
+                if (modelsVisible) LoadModels();
                 selectedArea = null;
                 showAreaDetails = false;
                 PlaceCameraAtScene();
@@ -160,6 +181,21 @@ public sealed class Viewer : GameWindow
             }
 
             loading = null;
+        }
+
+        if (modelLoading != null && modelLoading.IsCompleted)
+        {
+            try
+            {
+                models = modelLoading.GetAwaiter().GetResult();
+                modelRenderer.Upload(models);
+            }
+            catch (Exception exception)
+            {
+                modelsVisible = false;
+                ShowError(exception);
+            }
+            modelLoading = null;
         }
     }
 
@@ -460,7 +496,7 @@ public sealed class Viewer : GameWindow
             return;
         }
 
-        bool busy = indexing != null || loading != null;
+        bool busy = indexing != null || loading != null || modelLoading != null;
         if (ImGui.BeginMenu("File"))
         {
             if (ImGui.MenuItem("Open dump...", "", false, !busy))
@@ -484,6 +520,11 @@ public sealed class Viewer : GameWindow
             }
 
             ImGui.Separator();
+            if (ImGui.MenuItem("Textured models", "", modelsVisible, scene != null && !busy))
+            {
+                modelsVisible = !modelsVisible;
+                if (modelsVisible) LoadModels();
+            }
             DrawDisplayModeMenu("Collision", ref collisionMode, ref collisionShaded);
             if (scene != null)
             {
@@ -626,6 +667,12 @@ public sealed class Viewer : GameWindow
         if (scene != null && ImGui.CollapsingHeader("Current scene details"))
         {
             ImGui.Text($"{scene.Collision.Triangles:N0} collision triangles; {scene.DeathAreas} death areas");
+            if (modelLoading != null) ImGui.TextUnformatted("Loading textured models...");
+            if (models != null)
+            {
+                ImGui.Text($"{models.Instances.Count:N0} model parts");
+                ImGui.Text($"{models.MissingModels} missing models; {models.SkippedShapes} unsupported shapes; {models.MissingTextures} missing or unsupported textures");
+            }
         }
 
         ImGui.EndPopup();
@@ -677,6 +724,7 @@ public sealed class Viewer : GameWindow
         Vector3 forward = GetCameraDirection();
         Matrix4x4 view = Matrix4x4.CreateLookAt(cameraPosition, cameraPosition + forward, Vector3.UnitY);
         Matrix4x4 projection = CreateProjection();
+        if (modelsVisible) modelRenderer.Draw(view * projection);
         renderer.Draw(view * projection, cameraPosition, forward, collisionMode, collisionShaded);
         ui.End();
         RunGraphicsSmokeTest();
@@ -782,6 +830,7 @@ public sealed class Viewer : GameWindow
     {
         ReleaseMouse();
         renderer.Dispose();
+        modelRenderer.Dispose();
         ui.Dispose();
         base.OnUnload();
     }

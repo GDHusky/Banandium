@@ -2,6 +2,21 @@
   "version": 1,
   "dependencies": {
     "net9.0-windows7.0": {
+      "AssetRipper.TextureDecoder": {
+        "type": "Direct",
+        "requested": "[2.6.3, )",
+        "resolved": "2.6.3",
+        "contentHash": "ksBcITGCJ2QJQ94dtmBYsx1Lg6+thSkeQYY3oN15v2Q0aCaIKfVHaw5H2iK6QF8FuGeQzf2CpcKJ8XeryCS6Cw=="
+      },
+      "BfresLibrary": {
+        "type": "Direct",
+        "requested": "[1.6.0, )",
+        "resolved": "1.6.0",
+        "contentHash": "sz8jORSY/s0EDatR1PX/snutdRTEaFfv36qiStz3jrbMkGjxIaLPdbrk/UaWzAnMTjNjMeLgGJNj+bbkgybKYg==",
+        "dependencies": {
+          "Newtonsoft.Json": "13.0.3"
+        }
+      },
       "BymlLibrary": {
         "type": "Direct",
         "requested": "[2.1.18, )",
@@ -65,6 +80,11 @@
         "type": "Transitive",
         "resolved": "0.1.1",
         "contentHash": "kpLKMRB+5wa53ITn6sZyNXPGFWyQ6jCGILT8HLHhueGpgZ7oDZnIuqcxH60ll5U1bpaYBLzAcdeYFLcYb6bCmw=="
+      },
+      "Newtonsoft.Json": {
+        "type": "Transitive",
+        "resolved": "13.0.3",
+        "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
       },
       "OpenTK.Audio.OpenAL": {
         "type": "Transitive",
@@ -160,24 +180,6 @@
         "type": "Transitive",
         "resolved": "6.0.0",
         "contentHash": "/iUeP3tq1S0XdNNoMz5C9twLSrM/TH+qElHkXWaPvuNOt+99G75NrV0OS2EqHx5wMN7popYjpc8oTjC1y16DLg=="
-      }
-    },
-    "net9.0-windows7.0/win-x64": {
-      "ImGui.NET": {
-        "type": "Direct",
-        "requested": "[1.91.6.1, )",
-        "resolved": "1.91.6.1",
-        "contentHash": "Ph3j8pO6UM28PPJWP+5LEJSPVPkd8ivpVS8tRyY9b0IHn1HDIrMZ2o/FdiXaYW6YhNxMHmbevw6Jcfs+IDKi0Q==",
-        "dependencies": {
-          "System.Buffers": "4.5.1",
-          "System.Numerics.Vectors": "4.5.0",
-          "System.Runtime.CompilerServices.Unsafe": "6.0.0"
-        }
-      },
-      "OpenTK.redist.glfw": {
-        "type": "Transitive",
-        "resolved": "3.4.0.44",
-        "contentHash": "HEjbdk0wWxSRrXHl3DSmrA8trecndgJpAHHloJJ1vPseNfeu/ynmrH/LturU1KguRn4r3IzZ81UIp5xRjnyahg=="
       }
     }
   }
