@@ -141,6 +141,9 @@ public sealed class SceneData
     public MeshData IgnoreAreas { get; set; } = new MeshData();
     public int IgnoreAreaCount { get; set; }
     public List<SceneLayer> AreaLayers { get; set; } = new List<SceneLayer>();
+    public SceneLayer ActorCollision { get; } = new SceneLayer("Actor collision", new Vector3(1, .65f, .15f)) { Mode = DisplayMode.SemiTransparent };
+    public int CollisionActors { get; set; }
+    public int UnsupportedActorShapes { get; set; }
 
     public SceneData(string name, MeshData collision, MeshData death, int deathAreas)
     {

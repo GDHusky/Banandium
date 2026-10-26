@@ -139,6 +139,8 @@ public sealed class SceneRenderer : IDisposable
         collision.Mesh.Vertices.AddRange(scene.Collision.Vertices);
         batches.Add(new Batch(collision, 0));
         int count = collision.Mesh.Vertices.Count;
+        batches.Add(new Batch(scene.ActorCollision, count));
+        count += scene.ActorCollision.Mesh.Vertices.Count;
         foreach (SceneLayer layer in scene.AreaLayers)
         {
             batches.Add(new Batch(layer, count));

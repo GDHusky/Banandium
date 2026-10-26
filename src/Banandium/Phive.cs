@@ -79,16 +79,26 @@ public sealed class Phive
 
     public void Read()
     {
+        ReadTagfile(reader.I32(0x30));
+    }
+
+    public void ReadShapeFile()
+    {
+        ReadTagfile(reader.I32(0x0c));
+    }
+
+    public int UnsupportedShapes { get; private set; }
+
+    private void ReadTagfile(int tag)
+    {
         if (reader.Text(0, 5) != "Phive")
         {
             throw new InvalidDataException("Expected Phive file");
         }
 
-        //the static-compound header contains the tagfile offset at 0x30
-        int tag = reader.I32(0x30);
         if (tag < 0 || tag > reader.Data.Length - 8 || reader.Text(tag + 4, 4) != "TAG0")
         {
-            throw new InvalidDataException("Unsupported static-compound header");
+            throw new InvalidDataException("Unsupported physics header");
         }
 
         int size = (int)(BinaryPrimitives.ReadUInt32BigEndian(reader.Data.AsSpan(tag, 4)) & 0x3fffffff);
@@ -166,6 +176,9 @@ public sealed class Phive
             case "hknpConvexShape":
             case "hknpConvexPolytopeShape":
                 ReadHull(offset, world);
+                break;
+            default:
+                UnsupportedShapes++;
                 break;
         }
 

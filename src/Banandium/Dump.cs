@@ -145,6 +145,7 @@ public sealed class Dump
         List<SceneArea> areas = new List<SceneArea>();
         int areaCount = 0;
         int ignoredCount = 0;
+        var actorCollision = new ActorCollision(this);
         string? placementPath = Resolve($"StageData/{stageName}.alsarc.zs");
         if (placementPath != null)
         {
@@ -152,6 +153,7 @@ public sealed class Dump
             byte[] data = archive[stageName + ".byml"];
             var scenarios = (List<object?>)new Byml(data).Read()!;
             var scenario = (Dictionary<string, object?>)scenarios[scenarioIndex]!;
+            actorCollision.Load(scenario);
             if (scenario.TryGetValue("AreaList", out object? list))
             {
                 foreach (object? value in (List<object?>)list!)
@@ -206,12 +208,16 @@ public sealed class Dump
             reader.Read();
         }
 
-        return new SceneData(name, collision, death, areaCount)
+        var result = new SceneData(name, collision, death, areaCount)
         {
             AreaLayers = layers,
             IgnoreAreas = ignoredAreas,
-            IgnoreAreaCount = ignoredCount
+            IgnoreAreaCount = ignoredCount,
+            CollisionActors = actorCollision.LoadedActors,
+            UnsupportedActorShapes = actorCollision.UnsupportedShapes
         };
+        result.ActorCollision.Mesh.Vertices.AddRange(actorCollision.Mesh.Vertices);
+        return result;
     }
 
     public SceneModels LoadModels(string name)

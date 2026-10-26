@@ -543,6 +543,9 @@ public sealed class Viewer : GameWindow
             DrawDisplayModeMenu("Collision", ref collisionMode, ref collisionShaded);
             if (scene != null)
             {
+                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(scene.ActorCollision.Color, 1));
+                DrawDisplayModeMenu("Actor collision", ref scene.ActorCollision.Mode, ref scene.ActorCollision.Shaded);
+                ImGui.PopStyleColor();
                 ImGui.Separator();
                 foreach (SceneLayer layer in scene.AreaLayers)
                 {
@@ -682,6 +685,9 @@ public sealed class Viewer : GameWindow
         if (scene != null && ImGui.CollapsingHeader("Current scene details"))
         {
             ImGui.Text($"{scene.Collision.Triangles:N0} collision triangles; {scene.DeathAreas} death areas");
+            ImGui.Text($"{scene.CollisionActors:N0} actors with collision; {scene.ActorCollision.Mesh.Triangles:N0} actor collision triangles");
+            ImGui.Text($"{scene.UnsupportedActorShapes:N0} unsupported actor shape definitions or bindings");
+            ImGui.TextUnformatted("Actor collision uses placed poses; switches and animation are not simulated");
             if (modelLoading != null) ImGui.TextUnformatted("Loading textured models...");
             if (models != null)
             {
