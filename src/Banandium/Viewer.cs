@@ -26,6 +26,10 @@ public sealed class Viewer : GameWindow
     private bool openSceneDialog;
     private bool sceneDialogVisible;
     private bool openErrorDialog;
+    private bool aboutVisible;
+    private bool updatesVisible;
+    private Task<UpdateResult>? updateCheck;
+    private UpdateResult updateResult = new UpdateResult("Not checked yet");
     private DisplayMode collisionMode = DisplayMode.Opaque;
     private DisplayMode smokeAreaMode = DisplayMode.SemiTransparent;
     private bool collisionShaded = true;
@@ -63,6 +67,7 @@ public sealed class Viewer : GameWindow
         VSync = VSyncMode.On;
         ui = new ImGuiController(this);
         renderer = new SceneRenderer();
+        CheckForUpdates();
         if (arguments.Length > 0 && !arguments[0].StartsWith("--"))
         {
             if (arguments.Length > 1 && !arguments[1].StartsWith("--"))
@@ -221,7 +226,7 @@ public sealed class Viewer : GameWindow
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         base.OnMouseWheel(e);
-        if (sceneDialogVisible || ImGui.GetIO().WantCaptureMouse)
+        if (sceneDialogVisible || aboutVisible || updatesVisible || ImGui.GetIO().WantCaptureMouse)
         {
             return;
         }
@@ -236,12 +241,18 @@ public sealed class Viewer : GameWindow
     {
         base.OnUpdateFrame(e);
         CheckLoadingTasks();
-        if (!IsFocused || sceneDialogVisible || KeyboardState.IsKeyPressed(Keys.Escape))
+        if (updateCheck != null && updateCheck.IsCompleted)
+        {
+            updateResult = updateCheck.GetAwaiter().GetResult();
+            updateCheck = null;
+            if (updateResult.Available) updatesVisible = true;
+        }
+        if (!IsFocused || sceneDialogVisible || aboutVisible || updatesVisible || KeyboardState.IsKeyPressed(Keys.Escape))
         {
             ReleaseMouse();
         }
 
-        if (!IsFocused || sceneDialogVisible || ImGui.GetIO().WantCaptureKeyboard)
+        if (!IsFocused || sceneDialogVisible || aboutVisible || updatesVisible || ImGui.GetIO().WantCaptureKeyboard)
         {
             return;
         }
@@ -487,7 +498,70 @@ public sealed class Viewer : GameWindow
             ImGui.EndMenu();
         }
 
+        if (ImGui.BeginMenu("Help"))
+        {
+            if (ImGui.MenuItem("About"))
+            {
+                aboutVisible = true;
+                ReleaseMouse();
+            }
+            if (ImGui.MenuItem("Check for updates", "", false, updateCheck == null))
+            {
+                updatesVisible = true;
+                ReleaseMouse();
+                CheckForUpdates();
+            }
+            ImGui.EndMenu();
+        }
+
         ImGui.EndMainMenuBar();
+    }
+
+    private void CheckForUpdates()
+    {
+        if (updateCheck != null) return;
+        updateResult = new UpdateResult("Checking for updates...");
+        updateCheck = Updates.CheckAsync();
+    }
+
+    private void DrawAbout()
+    {
+        if (!aboutVisible) return;
+        ImGui.SetNextWindowSize(new Vector2(410, 0), ImGuiCond.Appearing);
+        if (ImGui.Begin("About Banandium", ref aboutVisible, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextUnformatted("Version " + Updates.CurrentTag);
+            ImGui.TextUnformatted("Banandium was developed by JakeZSR");
+        }
+        ImGui.End();
+    }
+
+    private void DrawUpdates()
+    {
+        if (!updatesVisible) return;
+        ImGui.SetNextWindowSize(new Vector2(410, 0), ImGuiCond.Appearing);
+        if (ImGui.Begin("Updates", ref updatesVisible, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextWrapped(updateResult.Message);
+            if (updateResult.Available)
+            {
+                if (ImGui.Button("View release"))
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Updates.ReleasePage)
+                        {
+                            UseShellExecute = true
+                        });
+                    }
+                    catch (System.ComponentModel.Win32Exception exception)
+                    {
+                        ShowError(exception);
+                    }
+                }
+            }
+        }
+        ImGui.End();
     }
 
     private void DrawSceneDialog()
@@ -592,6 +666,8 @@ public sealed class Viewer : GameWindow
         ui.Begin(this, (float)e.Time, lookingAround);
         DrawMenuBar();
         DrawSceneDialog();
+        DrawAbout();
+        DrawUpdates();
         DrawErrorDialog();
         PickArea();
         DrawAreaDetails();
