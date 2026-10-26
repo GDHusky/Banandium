@@ -40,6 +40,8 @@ public sealed class Viewer : GameWindow
     private float cameraPitch = -20;
     private float cameraSpeed = 30;
     private bool lookingAround;
+    private SceneObject? selectedObject;
+    private readonly HashSet<SceneObject> hiddenObjects = new HashSet<SceneObject>();
     private SceneArea? selectedArea;
     private bool showAreaDetails;
     private Task<string?>? folderPicking;
@@ -147,6 +149,8 @@ public sealed class Viewer : GameWindow
                 models = null;
                 modelRenderer.Upload(null);
                 selectedArea = null;
+                selectedObject = null;
+                hiddenObjects.Clear();
                 showAreaDetails = false;
                 selectedScene = "";
                 sceneFilter = "";
@@ -181,6 +185,8 @@ public sealed class Viewer : GameWindow
                 modelRenderer.Upload(null);
                 if (modelsVisible) LoadModels();
                 selectedArea = null;
+                selectedObject = null;
+                hiddenObjects.Clear();
                 showAreaDetails = false;
                 PlaceCameraAtScene();
                 Title = "Banandium - " + scene.Name;
@@ -386,13 +392,10 @@ public sealed class Viewer : GameWindow
         ImGui.EndMenu();
     }
 
-    private void PickArea()
+    private void PickObject()
     {
         if (scene == null || lookingAround || sceneDialogVisible ||
-            ImGui.GetIO().WantCaptureMouse || !ImGui.IsMouseClicked(ImGuiMouseButton.Left))
-        {
-            return;
-        }
+            ImGui.GetIO().WantCaptureMouse || !ImGui.IsMouseClicked(ImGuiMouseButton.Left)) return;
         Vector2 mouse = ImGui.GetMousePos();
         Vector3 forward = GetCameraDirection();
         Vector3 right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
@@ -400,26 +403,79 @@ public sealed class Viewer : GameWindow
         float x = (2 * mouse.X / ClientSize.X - 1) * ClientSize.X / ClientSize.Y;
         float y = 1 - 2 * mouse.Y / ClientSize.Y;
         Vector3 direction = Vector3.Normalize(forward + (right * x + up * y) * MathF.Tan(MathF.PI / 6));
+        selectedObject = FindObject(cameraPosition, direction);
+        if (selectedObject != null) ImGui.OpenPopup("Object menu");
+    }
+
+    private SceneObject? FindObject(Vector3 origin, Vector3 direction)
+    {
+        if (scene == null) return null;
+        SceneObject? found = null;
         float nearest = float.PositiveInfinity;
-        if (collisionMode == DisplayMode.Opaque)
-        {
-            nearest = SceneAreas.HitDistance(scene.Collision, cameraPosition, direction);
-        }
-        selectedArea = null;
+        var meshes = new List<MeshData>();
+        if (collisionMode != DisplayMode.Disabled) meshes.Add(scene.Collision);
+        if (scene.ActorCollision.Mode != DisplayMode.Disabled) meshes.Add(scene.ActorCollision.Mesh);
         foreach (SceneLayer layer in scene.AreaLayers)
         {
-            if (layer.Mode == DisplayMode.Disabled) continue;
-            foreach (SceneArea area in layer.Areas)
+            if (layer.Mode != DisplayMode.Disabled) meshes.Add(layer.Mesh);
+        }
+        foreach (MeshData mesh in meshes)
+        {
+            foreach (MeshPart part in mesh.Parts)
             {
-                float distance = SceneAreas.HitDistance(area.Mesh, cameraPosition, direction);
+                float distance = part.HitDistance(origin, direction);
                 if (distance < nearest)
                 {
                     nearest = distance;
-                    selectedArea = area;
+                    found = part.Object;
                 }
             }
         }
-        showAreaDetails = selectedArea != null;
+        if (modelsVisible && models != null)
+        {
+            foreach (ModelInstance instance in models.Instances)
+            {
+                float distance = instance.HitDistance(origin, direction);
+                if (distance < nearest)
+                {
+                    nearest = distance;
+                    found = instance.Object;
+                }
+            }
+        }
+        return found;
+    }
+
+    private void DrawObjectMenu()
+    {
+        if (!ImGui.BeginPopup("Object menu")) return;
+        if (selectedObject != null)
+        {
+            ImGui.TextUnformatted(selectedObject.Name);
+            ImGui.Separator();
+            if (ImGui.MenuItem("Hide")) HideObject(selectedObject);
+            if (selectedObject.Area != null && ImGui.MenuItem("Area details"))
+            {
+                selectedArea = selectedObject.Area;
+                showAreaDetails = true;
+            }
+        }
+        ImGui.EndPopup();
+    }
+
+    private void HideObject(SceneObject item)
+    {
+        item.Hidden = true;
+        hiddenObjects.Add(item);
+        if (item.Area == selectedArea) showAreaDetails = false;
+        if (scene != null) renderer.Upload(scene);
+    }
+
+    private void UnhideAll()
+    {
+        foreach (SceneObject item in hiddenObjects) item.Hidden = false;
+        hiddenObjects.Clear();
+        if (scene != null) renderer.Upload(scene);
     }
 
     private void DrawAreaDetails()
@@ -534,6 +590,7 @@ public sealed class Viewer : GameWindow
                 openSceneDialog = true;
             }
 
+            if (ImGui.MenuItem("Unhide all", "", false, hiddenObjects.Count > 0)) UnhideAll();
             ImGui.Separator();
             if (ImGui.MenuItem("Textured models", "", modelsVisible, scene != null && !busy))
             {
@@ -737,7 +794,8 @@ public sealed class Viewer : GameWindow
         DrawAbout();
         DrawUpdates();
         DrawErrorDialog();
-        PickArea();
+        PickObject();
+        DrawObjectMenu();
         DrawAreaDetails();
         GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
         GL.ClearColor(0, 0, 0, 1);

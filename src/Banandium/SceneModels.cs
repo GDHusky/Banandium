@@ -17,9 +17,18 @@ public sealed class ModelMesh
     public GX2TexClamp WrapY;
     public Vector4 Tint = Vector4.One;
     public bool UsePlacementColor;
+    public MeshPart Picking = null!;
 }
 
-public sealed record ModelInstance(ModelMesh Mesh, Matrix4x4 Transform, Vector4? MaterialColor);
+public sealed record ModelInstance(ModelMesh Mesh, Matrix4x4 Transform, Vector4? MaterialColor, SceneObject Object)
+{
+    public float HitDistance(Vector3 origin, Vector3 direction)
+    {
+        if (Object.Hidden) return float.PositiveInfinity;
+        Matrix4x4.Invert(Transform, out Matrix4x4 inverse);
+        return Mesh.Picking.HitDistance(Vector3.Transform(origin, inverse), Vector3.TransformNormal(direction, inverse));
+    }
+}
 
 public sealed class SceneModels
 {
@@ -62,7 +71,8 @@ public sealed class SceneModels
                 if (transform.GetDeterminant() == 0) continue;
                 string material = materialPresets.Resolve(entry);
                 Vector4? color = material == "" ? null : actorMaterials.ReadColor(material);
-                foreach (ModelMesh mesh in meshes) Instances.Add(new ModelInstance(mesh, transform, color));
+                var item = new SceneObject(actor);
+                foreach (ModelMesh mesh in meshes) Instances.Add(new ModelInstance(mesh, transform, color, item));
             }
         }
     }
@@ -127,6 +137,13 @@ public sealed class SceneModels
                 var indices = new List<uint>();
                 foreach (uint index in sourceMesh.GetIndices()) indices.Add(index + sourceMesh.FirstVertex);
                 mesh.Indices = indices.ToArray();
+                var picking = new MeshData();
+                foreach (uint index in mesh.Indices)
+                {
+                    int offset = (int)index * 12;
+                    picking.Vertices.Add(new Vector3(mesh.Vertices[offset], mesh.Vertices[offset + 1], mesh.Vertices[offset + 2]));
+                }
+                mesh.Picking = new MeshPart(picking, 0, picking.Vertices.Count, new SceneObject(shape.Name));
                 if (material.ShaderParams.TryGetValue("basecolor_const", out ShaderParam tint) && tint.DataValue is float[] color)
                     mesh.Tint = new Vector4(color[0], color[1], color[2], color[3]);
                 mesh.Color = ReadTexture(material, "_a0");

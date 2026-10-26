@@ -149,6 +149,7 @@ public sealed class Phive
         }
 
         string type = objects[offset];
+        int start = mesh.Vertices.Count;
 
         switch (type)
         {
@@ -182,6 +183,11 @@ public sealed class Phive
                 break;
         }
 
+        if (type != "hknpCompoundShape" && mesh.Vertices.Count > start)
+        {
+            var item = new SceneObject("Collision shape " + (mesh.Parts.Count + 1));
+            mesh.Parts.Add(new MeshPart(mesh, start, mesh.Vertices.Count - start, item));
+        }
         stack.Remove(offset);
     }
 

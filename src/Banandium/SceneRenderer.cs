@@ -53,6 +53,7 @@ public sealed class SceneRenderer : IDisposable
     private sealed class Batch
     {
         public SceneLayer Layer;
+        public List<Vector3> Vertices;
         public int First;
         public int Count;
         public DisplayMode LastMode;
@@ -61,7 +62,8 @@ public sealed class SceneRenderer : IDisposable
         {
             Layer = layer;
             First = first;
-            Count = layer.Mesh.Vertices.Count;
+            Vertices = layer.Mesh.VisibleVertices();
+            Count = Vertices.Count;
             LastMode = layer.Mode;
             LastShaded = layer.Shaded;
         }
@@ -136,15 +138,15 @@ public sealed class SceneRenderer : IDisposable
     {
         batches.Clear();
         var collision = new SceneLayer("Collision", new Vector3(.38f, .72f, .83f));
-        collision.Mesh.Vertices.AddRange(scene.Collision.Vertices);
+        collision.Mesh.Vertices.AddRange(scene.Collision.VisibleVertices());
         batches.Add(new Batch(collision, 0));
         int count = collision.Mesh.Vertices.Count;
         batches.Add(new Batch(scene.ActorCollision, count));
-        count += scene.ActorCollision.Mesh.Vertices.Count;
+        count += batches[^1].Count;
         foreach (SceneLayer layer in scene.AreaLayers)
         {
             batches.Add(new Batch(layer, count));
-            count += layer.Mesh.Vertices.Count;
+            count += batches[^1].Count;
         }
         vertices = new float[count * 10];
         centers = new Vector3[count / 3];
@@ -154,7 +156,7 @@ public sealed class SceneRenderer : IDisposable
         for (int layerIndex = 0; layerIndex < batches.Count; layerIndex++)
         {
             Batch batch = batches[layerIndex];
-            var mesh = batch.Layer.Mesh.Vertices;
+            var mesh = batch.Vertices;
             for (int i = 0; i < mesh.Count; i += 3)
             {
                 Vector3 normal = Vector3.Normalize(Vector3.Cross(mesh[i + 1] - mesh[i], mesh[i + 2] - mesh[i]));

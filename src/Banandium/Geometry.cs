@@ -25,6 +25,21 @@ public sealed class MeshData
 {
     public List<Vector3> Vertices { get; } = new List<Vector3>();
 
+    public List<MeshPart> Parts { get; } = new List<MeshPart>();
+
+    public List<Vector3> VisibleVertices()
+    {
+        if (Parts.Count == 0) return Vertices;
+        var visible = new List<Vector3>();
+        foreach (MeshPart part in Parts)
+        {
+            if (part.Object.Hidden) continue;
+            for (int i = part.First; i < part.First + part.Count; i++)
+                visible.Add(Vertices[i]);
+        }
+        return visible;
+    }
+
     public int Triangles
     {
         get { return Vertices.Count / 3; }

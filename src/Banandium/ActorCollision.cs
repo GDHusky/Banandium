@@ -31,7 +31,9 @@ public sealed class ActorCollision
                 if (mesh.Triangles == 0) continue;
                 Matrix4x4 transform = Dump.ReadTransform(entry);
                 if (transform.GetDeterminant() == 0) continue;
+                int first = Mesh.Vertices.Count;
                 Append(Mesh, mesh, transform);
+                Mesh.Parts.Add(new MeshPart(Mesh, first, Mesh.Vertices.Count - first, new SceneObject(actor)));
                 LoadedActors++;
             }
         }

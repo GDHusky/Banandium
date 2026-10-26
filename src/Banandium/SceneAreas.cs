@@ -105,15 +105,19 @@ public static class SceneAreas
                 }
             }
             area.Mesh = area.Shape.Subtract(cutouts);
+            int first = layer.Mesh.Vertices.Count;
             layer.Mesh.Vertices.AddRange(area.Mesh.Vertices);
+            var item = new SceneObject(area.Name) { Area = area };
+            layer.Mesh.Parts.Add(new MeshPart(layer.Mesh, first, area.Mesh.Vertices.Count, item));
         }
         return new List<SceneLayer>(layers.Values);
     }
 
-    public static float HitDistance(MeshData mesh, Vector3 origin, Vector3 direction)
+    public static float HitDistance(MeshData mesh, Vector3 origin, Vector3 direction, int first = 0, int count = -1)
     {
         float nearest = float.PositiveInfinity;
-        for (int i = 0; i < mesh.Vertices.Count; i += 3)
+        if (count < 0) count = mesh.Vertices.Count;
+        for (int i = first; i < first + count; i += 3)
         {
             Vector3 a = mesh.Vertices[i];
             Vector3 edge1 = mesh.Vertices[i + 1] - a;

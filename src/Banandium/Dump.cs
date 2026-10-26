@@ -217,6 +217,7 @@ public sealed class Dump
             UnsupportedActorShapes = actorCollision.UnsupportedShapes
         };
         result.ActorCollision.Mesh.Vertices.AddRange(actorCollision.Mesh.Vertices);
+        result.ActorCollision.Mesh.Parts.AddRange(actorCollision.Mesh.Parts);
         return result;
     }
 
