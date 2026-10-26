@@ -1,6 +1,9 @@
 # Banandium
 A rudamentary scene viewer for Donkey Kong Bananza
 
+> [!IMPORTANT]
+> Banandium does *not* provide any copyrighted assets. You must provide your own copy of the original game.
+
 ## Controls
 
 - Hold right mouse button to pan the camera around
