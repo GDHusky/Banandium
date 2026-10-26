@@ -1,13 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
+    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework Condition="'$(RuntimeIdentifier)' == 'win-x64' or ('$(RuntimeIdentifier)' == '' and '$(OS)' == 'Windows_NT')">net9.0-windows</TargetFramework>
+    <UseWindowsForms Condition="'$(TargetFramework)' == 'net9.0-windows'">true</UseWindowsForms>
+    <EnableWindowsTargeting Condition="'$(TargetFramework)' == 'net9.0-windows'">true</EnableWindowsTargeting>
+    <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net9.0-windows'">win-x64</RuntimeIdentifiers>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetLockFilePath Condition="'$(TargetFramework)' == 'net9.0-windows'">packages.windows.lock.json</NuGetLockFilePath>
     <Version>1.0.0</Version>
     <InformationalVersion>v1.0</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>

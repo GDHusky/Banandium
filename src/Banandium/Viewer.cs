@@ -3,7 +3,6 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using System.Drawing.Imaging;
 using System.Numerics;
 using Keys = OpenTK.Windowing.GraphicsLibraryFramework.Keys;
 
@@ -35,9 +34,7 @@ public sealed class Viewer : GameWindow
     private Task<UpdateResult>? updateCheck;
     private UpdateResult updateResult = new UpdateResult("Not checked yet");
     private DisplayMode collisionMode = DisplayMode.Opaque;
-    private DisplayMode smokeAreaMode = DisplayMode.SemiTransparent;
     private bool collisionShaded = true;
-    private bool smokeAreaShaded = true;
     private Vector3 cameraPosition = new Vector3(30, 20, 30);
     private float cameraYaw = -135;
     private float cameraPitch = -20;
@@ -45,7 +42,7 @@ public sealed class Viewer : GameWindow
     private bool lookingAround;
     private SceneArea? selectedArea;
     private bool showAreaDetails;
-    private int smokeFrames;
+    private Task<string?>? folderPicking;
     public int ExitCode { get; private set; }
 
     public Viewer(string[] args) : base(new GameWindowSettings { UpdateFrequency = 120 }, CreateWindowSettings())
@@ -128,6 +125,19 @@ public sealed class Viewer : GameWindow
 
     private void CheckLoadingTasks()
     {
+        if (folderPicking != null && folderPicking.IsCompleted)
+        {
+            try
+            {
+                string? folder = folderPicking.GetAwaiter().GetResult();
+                if (folder != null) OpenDump(folder);
+            }
+            catch (Exception exception)
+            {
+                ShowError(exception);
+            }
+            folderPicking = null;
+        }
         if (indexing != null && indexing.IsCompleted)
         {
             try
@@ -478,14 +488,19 @@ public sealed class Viewer : GameWindow
     private void ChooseDumpFolder()
     {
         ReleaseMouse();
-        using FolderBrowserDialog dialog = new FolderBrowserDialog
+        if (!OperatingSystem.IsWindows())
         {
-            Description = "Select your extracted game dump or romfs folder",
-            UseDescriptionForTitle = true
-        };
-        if (dialog.ShowDialog() == DialogResult.OK)
+            folderPicking = Task.Run(DumpFolderDialog.Show);
+            return;
+        }
+        try
         {
-            OpenDump(dialog.SelectedPath);
+            string? folder = DumpFolderDialog.Show();
+            if (folder != null) OpenDump(folder);
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception);
         }
     }
 
@@ -496,7 +511,7 @@ public sealed class Viewer : GameWindow
             return;
         }
 
-        bool busy = indexing != null || loading != null || modelLoading != null;
+        bool busy = indexing != null || loading != null || modelLoading != null || folderPicking != null;
         if (ImGui.BeginMenu("File"))
         {
             if (ImGui.MenuItem("Open dump...", "", false, !busy))
@@ -727,7 +742,6 @@ public sealed class Viewer : GameWindow
         if (modelsVisible) modelRenderer.Draw(view * projection);
         renderer.Draw(view * projection, cameraPosition, forward, collisionMode, collisionShaded);
         ui.End();
-        RunGraphicsSmokeTest();
         SwapBuffers();
     }
 
@@ -738,92 +752,6 @@ public sealed class Viewer : GameWindow
         float focalLength = 1 / MathF.Tan(MathF.PI / 6);
         float aspect = (float)ClientSize.X / ClientSize.Y;
         return new Matrix4x4(focalLength / aspect, 0, 0, 0, 0, focalLength, 0, 0, 0, 0, (far + near) / (near - far), -1, 0, 0, 2 * far * near / (near - far), 0);
-    }
-
-    private void RunGraphicsSmokeTest()
-    {
-        if (Array.IndexOf(arguments, "--smoke") < 0)
-        {
-            return;
-        }
-
-        if (scene == null && errorMessage == "")
-        {
-            return;
-        }
-
-        smokeFrames++;
-        if (smokeFrames % 8 != 0)
-        {
-            return;
-        }
-
-        int step = smokeFrames / 8 - 1;
-        Directory.CreateDirectory("artifacts");
-        string filename = $"artifacts/modes-{step}.png";
-        if (step == 0)
-        {
-            filename = "artifacts/viewer.png";
-        }
-
-        if (step >= 10 && step <= 13)
-        {
-            filename = $"artifacts/shading-{step - 10}.png";
-        }
-
-        if (step == 14)
-        {
-            filename = "artifacts/scene-dialog.png";
-        }
-
-        SaveFrame(filename);
-        var glError = GL.GetError();
-        Console.WriteLine($"Smoke: {scene?.Name}; collision={collisionMode}; death={smokeAreaMode}; shading={collisionShaded}/{smokeAreaShaded}; GL error={glError}; {errorMessage}");
-        if (glError != OpenTK.Graphics.OpenGL4.ErrorCode.NoError || errorMessage != "")
-        {
-            ExitCode = 1;
-        }
-
-        if (step == 14 || ExitCode != 0)
-        {
-            Close();
-        }
-        else if (step == 13)
-        {
-            openSceneDialog = true;
-        }
-        else if (step >= 9)
-        {
-            collisionMode = DisplayMode.Opaque;
-            smokeAreaMode = DisplayMode.SemiTransparent;
-            int combination = step - 9;
-            collisionShaded = (combination & 1) != 0;
-            smokeAreaShaded = (combination & 2) != 0;
-        }
-        else
-        {
-            collisionMode = (DisplayMode)(step / 3);
-            smokeAreaMode = (DisplayMode)(step % 3);
-        }
-        if (scene != null)
-        {
-            foreach (SceneLayer layer in scene.AreaLayers)
-            {
-                layer.Mode = smokeAreaMode;
-                layer.Shaded = smokeAreaShaded;
-            }
-        }
-    }
-
-    private void SaveFrame(string path)
-    {
-        using Bitmap bitmap = new Bitmap(FramebufferSize.X, FramebufferSize.Y);
-        Rectangle rectangle = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
-        BitmapData bits = bitmap.LockBits(rectangle, ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-        GL.ReadPixels(0, 0, bitmap.Width, bitmap.Height, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, bits.Scan0);
-        bitmap.UnlockBits(bits);
-        bitmap.RotateFlip(RotateFlipType.RotateNoneFlipY);
-        bitmap.Save(path, ImageFormat.Png);
     }
 
     protected override void OnUnload()

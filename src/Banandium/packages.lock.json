@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net9.0-windows7.0": {
+    "net9.0": {
       "AssetRipper.TextureDecoder": {
         "type": "Direct",
         "requested": "[2.6.3, )",
@@ -180,6 +180,24 @@
         "type": "Transitive",
         "resolved": "6.0.0",
         "contentHash": "/iUeP3tq1S0XdNNoMz5C9twLSrM/TH+qElHkXWaPvuNOt+99G75NrV0OS2EqHx5wMN7popYjpc8oTjC1y16DLg=="
+      }
+    },
+    "net9.0/linux-x64": {
+      "ImGui.NET": {
+        "type": "Direct",
+        "requested": "[1.91.6.1, )",
+        "resolved": "1.91.6.1",
+        "contentHash": "Ph3j8pO6UM28PPJWP+5LEJSPVPkd8ivpVS8tRyY9b0IHn1HDIrMZ2o/FdiXaYW6YhNxMHmbevw6Jcfs+IDKi0Q==",
+        "dependencies": {
+          "System.Buffers": "4.5.1",
+          "System.Numerics.Vectors": "4.5.0",
+          "System.Runtime.CompilerServices.Unsafe": "6.0.0"
+        }
+      },
+      "OpenTK.redist.glfw": {
+        "type": "Transitive",
+        "resolved": "3.4.0.44",
+        "contentHash": "HEjbdk0wWxSRrXHl3DSmrA8trecndgJpAHHloJJ1vPseNfeu/ynmrH/LturU1KguRn4r3IzZ81UIp5xRjnyahg=="
       }
     }
   }
