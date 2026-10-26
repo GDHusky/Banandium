@@ -13,8 +13,8 @@
     <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <NuGetLockFilePath Condition="'$(TargetFramework)' == 'net9.0-windows'">packages.windows.lock.json</NuGetLockFilePath>
-    <Version>1.1.0</Version>
-    <InformationalVersion>v1.1</InformationalVersion>
+    <Version>1.2.0</Version>
+    <InformationalVersion>v1.2</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>

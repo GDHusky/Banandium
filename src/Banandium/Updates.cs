@@ -18,7 +18,10 @@ public static class Updates
 
     private static Version? ParseTag(string? tag)
     {
-        string? number = tag?.Trim().TrimStart('v', 'V').Split('+')[0];
+        string? number = tag?.Trim();
+        if (number != null && number.StartsWith("release-", StringComparison.OrdinalIgnoreCase))
+            number = number.Substring("release-".Length);
+        number = number?.TrimStart('v', 'V').Split('+')[0];
         if (!Version.TryParse(number, out Version? version)) return null;
         return new Version(version.Major, version.Minor, Math.Max(0, version.Build), Math.Max(0, version.Revision));
     }
