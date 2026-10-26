@@ -1,0 +1,11 @@
+DonkeyKongBananza/
+*.zip
+.venv/
+.dotnet/
+tools/
+**/bin/
+**/obj/
+artifacts/
+imgui.ini
+tests/
+docs/
