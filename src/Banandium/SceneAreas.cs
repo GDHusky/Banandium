@@ -65,11 +65,11 @@ public static class SceneAreas
         switch (family)
         {
             case "DeathArea": return new Vector3(1, 0.18f, 0.25f);
-            case "ChangeLevelArea": return new Vector3(0.3f, 1, 0.4f);
+            case "ChangeLevelArea": return new Vector3(0.25f, 0.65f, 1);
             case "InvalidateInputFallArea": return new Vector3(1, 0.65f, 0.12f);
             case "WorldEndBorderArea": return new Vector3(0.8f, 0.35f, 1);
             case "PlayerRecoveryInvalidateArea": return new Vector3(1, 0.4f, 0.7f);
-            case "PlayerRecoverySafetyPointArea": return new Vector3(0.7f, 1, 0.15f);
+            case "PlayerRecoverySafetyPointArea": return new Vector3(1, 0.9f, 0.2f);
             case "WaterArea": return new Vector3(0.15f, 0.4f, 1);
             default: return Vector3.One;
         }

@@ -219,6 +219,7 @@ public sealed class Dump
             AreaLayers = layers,
             Areas = areas,
             Conditions = conditions,
+            Triggers = SceneTriggers.Read(conditions),
             IgnoreAreas = ignoredAreas,
             IgnoreAreaCount = ignoredCount,
             CollisionActors = actorCollision.LoadedActors,

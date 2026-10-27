@@ -159,6 +159,7 @@ public sealed class SceneData
     public SceneLayer ActorCollision { get; } = new SceneLayer("Actor collision", new Vector3(1, .65f, .15f)) { Mode = DisplayMode.SemiTransparent };
     public SceneConditions Conditions { get; set; } = new SceneConditions();
     public List<SceneArea> Areas { get; set; } = new List<SceneArea>();
+    public SortedDictionary<string, List<SceneTrigger>> Triggers { get; set; } = new SortedDictionary<string, List<SceneTrigger>>(StringComparer.Ordinal);
     public int CollisionActors { get; set; }
     public int UnsupportedActorShapes { get; set; }
 

@@ -148,6 +148,15 @@ public sealed class SceneRenderer : IDisposable
             batches.Add(new Batch(layer, count));
             count += batches[^1].Count;
         }
+        foreach (var group in scene.Triggers.Values)
+        {
+            foreach (SceneTrigger trigger in group)
+            {
+                if (trigger.Layer == null) continue;
+                batches.Add(new Batch(trigger.Layer, count));
+                count += batches[^1].Count;
+            }
+        }
         vertices = new float[count * 10];
         centers = new Vector3[count / 3];
         triangleLayers = new int[count / 3];

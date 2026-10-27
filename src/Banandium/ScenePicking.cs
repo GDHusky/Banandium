@@ -7,6 +7,8 @@ public sealed class SceneObject
     public string Name { get; }
     public bool Hidden;
     public SceneArea? Area;
+    public bool IsAreaPlacement;
+    public SceneTrigger? Trigger;
     public Dictionary<string, object?> Fields { get; }
     public List<SceneLink> Links { get; } = new List<SceneLink>();
     public List<SceneLink> Incoming { get; } = new List<SceneLink>();

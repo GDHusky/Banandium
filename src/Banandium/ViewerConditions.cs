@@ -105,6 +105,11 @@ public sealed partial class Viewer
         }
         SceneObject selected = inspectedObject;
         ImGui.TextUnformatted(selected.Name);
+        if (selected.Trigger != null)
+        {
+            ImGui.TextUnformatted("Trigger type: " + selected.Name);
+            ImGui.TextUnformatted(selected.Trigger.Surface == null ? "Placement marker; activation bounds unknown" : "Authored area volume");
+        }
         ImGui.TextWrapped("Id: " + selected.Fields.GetValueOrDefault("Id", "Not available"));
         ImGui.TextWrapped("Preview: " + (selected.Condition == ConditionState.Unconditional ? "No placement condition" : selected.Condition.ToString()));
         if (selected.Hidden) ImGui.TextDisabled("Hidden manually");
@@ -162,6 +167,11 @@ public sealed partial class Viewer
         if (!item.HasBounds && !item.HasPosition) return;
         Vector3 center = item.HasBounds ? (item.Minimum + item.Maximum) * .5f : item.Position;
         float distance = item.HasBounds ? MathF.Max(15, (item.Maximum - item.Minimum).Length()) : 30;
+        if (item.Trigger != null)
+        {
+            center = item.Trigger.Center;
+            distance = item.Trigger.Surface != null ? MathF.Max(15, (item.Trigger.Maximum - item.Trigger.Minimum).Length()) : 30;
+        }
         cameraPosition = center - GetCameraDirection() * distance;
         highlightedObject = item;
     }
@@ -169,9 +179,12 @@ public sealed partial class Viewer
     private bool ShowConditionOutline(SceneObject item)
     {
         if (scene == null) return false;
+        if (item.Hidden || item.Filtered) return false;
+        if (item.Trigger != null && item.Area == null && !ShowTrigger(item.Trigger)) return false;
         if (item.IsConditional && !conditionalOutlinesVisible) return false;
         if (item == highlightedObject) return item.HasBounds || item.HasPosition;
-        if (!item.IsConditional || item.Hidden || item.Filtered) return false;
+        if (!item.IsConditional) return false;
+        if (item.Trigger != null && item.Area == null) return true;
         if (item.Area != null)
         {
             foreach (SceneLayer layer in scene.AreaLayers)
@@ -189,6 +202,7 @@ public sealed partial class Viewer
         {
             if (!ShowConditionOutline(item)) continue;
             Vector3 color = scene.ActorCollision.Color;
+            if (item.Trigger != null) color = new Vector3(.2f, 1, .35f);
             if (item.Area != null)
                 foreach (SceneLayer layer in scene.AreaLayers) if (layer.Name == item.Area.Name) color = layer.Color;
             if (item == highlightedObject) color = new Vector3(1, 1, .25f);

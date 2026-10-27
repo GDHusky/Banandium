@@ -9,6 +9,10 @@ public sealed class ViewerSettings
     public DisplayMode CollisionMode { get; set; } = DisplayMode.Opaque;
     public bool CollisionShaded { get; set; } = true;
     public bool ConditionalOutlines { get; set; } = true;
+    public bool TriggersVisible { get; set; } = true;
+    public DisplayMode TriggerMode { get; set; } = DisplayMode.SemiTransparent;
+    public bool TriggersShaded { get; set; } = true;
+    public Dictionary<string, bool> TriggerTypes { get; set; } = new Dictionary<string, bool>();
     public bool UnconditionalOnly { get; set; }
     public float CameraSpeed { get; set; } = 30;
     public Dictionary<string, LayerSettings> Layers { get; set; } = new Dictionary<string, LayerSettings>();
@@ -59,6 +63,10 @@ public sealed partial class Viewer
         collisionMode = settings.CollisionMode;
         collisionShaded = settings.CollisionShaded;
         conditionalOutlinesVisible = settings.ConditionalOutlines;
+        triggersVisible = settings.TriggersVisible;
+        triggerMode = settings.TriggerMode;
+        triggersShaded = settings.TriggersShaded;
+        triggerTypes = settings.TriggerTypes;
         cameraSpeed = float.IsFinite(settings.CameraSpeed) ? Math.Clamp(settings.CameraSpeed, .1f, 10000) : 30;
     }
 
@@ -89,6 +97,10 @@ public sealed partial class Viewer
         settings.CollisionMode = collisionMode;
         settings.CollisionShaded = collisionShaded;
         settings.ConditionalOutlines = conditionalOutlinesVisible;
+        settings.TriggersVisible = triggersVisible;
+        settings.TriggerMode = triggerMode;
+        settings.TriggersShaded = triggersShaded;
+        settings.TriggerTypes = triggerTypes;
         settings.CameraSpeed = cameraSpeed;
         settings.Save();
     }

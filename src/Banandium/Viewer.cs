@@ -421,7 +421,7 @@ public sealed partial class Viewer : GameWindow
         float x = (2 * mouse.X / ClientSize.X - 1) * ClientSize.X / ClientSize.Y;
         float y = 1 - 2 * mouse.Y / ClientSize.Y;
         Vector3 direction = Vector3.Normalize(forward + (right * x + up * y) * MathF.Tan(MathF.PI / 6));
-        selectedObject = FindObject(cameraPosition, direction);
+        selectedObject = PickTrigger(mouse) ?? FindObject(cameraPosition, direction);
         if (selectedObject != null) ImGui.OpenPopup("Object menu");
     }
 
@@ -436,6 +436,11 @@ public sealed partial class Viewer : GameWindow
         foreach (SceneLayer layer in scene.AreaLayers)
         {
             if (layer.Mode != DisplayMode.Disabled) meshes.Add(layer.Mesh);
+        }
+        foreach (var group in scene.Triggers.Values)
+        {
+            foreach (SceneTrigger trigger in group)
+                if (trigger.Layer != null && ShowTrigger(trigger)) meshes.Add(trigger.Layer.Mesh);
         }
         foreach (MeshData mesh in meshes)
         {
@@ -478,10 +483,20 @@ public sealed partial class Viewer : GameWindow
         if (selectedObject != null)
         {
             ImGui.TextUnformatted(selectedObject.Name);
+            if (selectedObject.Trigger != null)
+            {
+                ImGui.TextDisabled("Trigger: " + selectedObject.Trigger.Category);
+                if (selectedObject.Trigger.Surface == null) ImGui.TextDisabled("Placement marker; activation bounds unknown");
+            }
             ImGui.Separator();
             DrawSelectedSwitch();
             if (ImGui.MenuItem("Hide")) HideObject(selectedObject);
-            if (ImGui.MenuItem("Conditions")) InspectObject(selectedObject);
+            if (selectedObject.Trigger != null && ImGui.MenuItem("Hide all of type"))
+            {
+                triggerTypes[selectedObject.Name] = false;
+                if (highlightedObject?.Name == selectedObject.Name) highlightedObject = null;
+            }
+            if (ImGui.MenuItem(selectedObject.Trigger == null ? "Conditions" : "Details")) InspectObject(selectedObject);
             if (selectedObject.Area != null && ImGui.MenuItem("Area details"))
             {
                 selectedArea = selectedObject.Area;
@@ -622,6 +637,7 @@ public sealed partial class Viewer : GameWindow
 
             if (ImGui.MenuItem("Unhide all", "", false, hiddenObjects.Count > 0)) UnhideAll();
             DrawConditionMenu();
+            DrawTriggerMenu();
             if (ImGui.MenuItem("Conditional outlines", "", conditionalOutlinesVisible))
                 conditionalOutlinesVisible = !conditionalOutlinesVisible;
             ImGui.Separator();
@@ -838,8 +854,10 @@ public sealed partial class Viewer : GameWindow
         Matrix4x4 view = Matrix4x4.CreateLookAt(cameraPosition, cameraPosition + forward, Vector3.UnitY);
         Matrix4x4 projection = CreateProjection();
         if (modelsVisible) modelRenderer.Draw(view * projection);
+        UpdateTriggerLayers();
         renderer.Draw(view * projection, cameraPosition, forward, collisionMode, collisionShaded);
         DrawConditionOutlines(view * projection);
+        DrawTriggers(view * projection);
         ui.End();
         SwapBuffers();
     }

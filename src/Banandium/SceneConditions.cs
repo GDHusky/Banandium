@@ -17,15 +17,19 @@ public sealed class SceneConditions
     public SceneConditions(Dictionary<string, object?> scenario)
     {
         var roots = new List<Dictionary<string, object?>>();
-        foreach (object? value in scenario.Values)
+        foreach (var section in scenario)
         {
-            if (value is not List<object?> list) continue;
+            if (section.Value is not List<object?> list) continue;
             foreach (object? entry in list)
             {
                 if (entry is not Dictionary<string, object?> fields || !fields.ContainsKey("ObjectName")) continue;
                 roots.Add(fields);
                 string key = Key(fields);
-                if (key != "") Objects.TryAdd(key, new SceneObject((string)fields["ObjectName"]!, fields));
+                if (key != "")
+                {
+                    Objects.TryAdd(key, new SceneObject((string)fields["ObjectName"]!, fields));
+                    if (section.Key == "AreaList") Objects[key].IsAreaPlacement = true;
+                }
             }
         }
         foreach (var fields in roots) Register(fields);
