@@ -47,7 +47,7 @@ public sealed partial class Viewer
 
     private bool ShowTrigger(SceneTrigger trigger)
     {
-        return triggersVisible && triggerMode != DisplayMode.Disabled && IsTriggerTypeVisible(trigger.Object.Name) &&
+        return (trigger.Object.ForceVisible || (triggersVisible && triggerMode != DisplayMode.Disabled && IsTriggerTypeVisible(trigger.Object.Name))) &&
             !trigger.Object.Hidden && !trigger.Object.Filtered;
     }
 
@@ -59,7 +59,8 @@ public sealed partial class Viewer
             foreach (SceneTrigger trigger in group)
             {
                 if (trigger.Layer == null) continue;
-                trigger.Layer.Mode = ShowTrigger(trigger) && trigger.Object.Visible ? triggerMode : DisplayMode.Disabled;
+                DisplayMode mode = triggerMode == DisplayMode.Disabled ? DisplayMode.SemiTransparent : triggerMode;
+                trigger.Layer.Mode = ShowTrigger(trigger) && trigger.Object.Visible ? mode : DisplayMode.Disabled;
                 trigger.Layer.Shaded = triggersShaded;
             }
         }
@@ -80,7 +81,7 @@ public sealed partial class Viewer
 
     private SceneObject? PickTrigger(Vector2 mouse)
     {
-        if (scene == null || !triggersVisible) return null;
+        if (scene == null || (!triggersVisible && visibilityOverrides.Count == 0)) return null;
         SceneObject? found = null;
         float nearest = float.PositiveInfinity;
         Matrix4x4 matrix = CameraMatrix();
@@ -100,7 +101,7 @@ public sealed partial class Viewer
 
     private void DrawTriggers(Matrix4x4 matrix)
     {
-        if (scene == null || !triggersVisible) return;
+        if (scene == null || (!triggersVisible && visibilityOverrides.Count == 0)) return;
         var draw = ImGui.GetBackgroundDrawList();
         Vector2 mouse = ImGui.GetMousePos();
         SceneObject? hovered = ImGui.GetIO().WantCaptureMouse ? null : PickTrigger(mouse);

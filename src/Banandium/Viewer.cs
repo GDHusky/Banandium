@@ -159,9 +159,9 @@ public sealed partial class Viewer : GameWindow
                 selectedArea = null;
                 selectedObject = null;
                 hiddenObjects.Clear();
-                inspectedObject = null;
+                visibilityOverrides.Clear();
                 highlightedObject = null;
-                showConditions = false;
+                RebuildHierarchy();
                 showAreaDetails = false;
                 selectedScene = "";
                 sceneFilter = "";
@@ -203,9 +203,9 @@ public sealed partial class Viewer : GameWindow
                 selectedArea = null;
                 selectedObject = null;
                 hiddenObjects.Clear();
-                inspectedObject = null;
+                visibilityOverrides.Clear();
                 highlightedObject = null;
-                showConditions = false;
+                RebuildHierarchy();
                 showAreaDetails = false;
                 PlaceCameraAtScene();
                 Title = "Banandium - " + scene.Name;
@@ -225,6 +225,8 @@ public sealed partial class Viewer : GameWindow
                 models = modelLoading.GetAwaiter().GetResult();
                 AttachModelConditions();
                 modelRenderer.Upload(models);
+                if (scene != null && visibilityOverrides.Count > 0) renderer.Upload(scene);
+                RebuildHierarchy();
             }
             catch (Exception exception)
             {
@@ -302,7 +304,7 @@ public sealed partial class Viewer : GameWindow
             return;
         }
 
-        if (IsFocused && scene != null)
+        if (IsFocused && scene != null && IsOverScene(ImGui.GetMousePos()))
         {
             cameraSpeed = Math.Clamp(cameraSpeed * MathF.Pow(1.15f, e.OffsetY), 0.1f, 10000);
         }
@@ -328,7 +330,7 @@ public sealed partial class Viewer : GameWindow
             return;
         }
 
-        if (scene != null && !lookingAround && MouseState.IsButtonPressed(MouseButton.Right) && !ImGui.GetIO().WantCaptureMouse)
+        if (scene != null && !lookingAround && MouseState.IsButtonPressed(MouseButton.Right) && IsOverScene(ImGui.GetMousePos()) && !ImGui.GetIO().WantCaptureMouse)
         {
             lookingAround = true;
             CursorState = CursorState.Grabbed;
@@ -426,13 +428,14 @@ public sealed partial class Viewer : GameWindow
         if (scene == null || lookingAround || sceneDialogVisible ||
             ImGui.GetIO().WantCaptureMouse || !ImGui.IsMouseClicked(ImGuiMouseButton.Left)) return;
         Vector2 mouse = ImGui.GetMousePos();
+        if (!IsOverScene(mouse)) return;
         Vector3 forward = GetCameraDirection();
         Vector3 right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
         Vector3 up = Vector3.Normalize(Vector3.Cross(right, forward));
-        float x = (2 * mouse.X / ClientSize.X - 1) * ClientSize.X / ClientSize.Y;
-        float y = 1 - 2 * mouse.Y / ClientSize.Y;
+        float x = (2 * (mouse.X - sceneViewPosition.X) / sceneViewSize.X - 1) * sceneViewSize.X / sceneViewSize.Y;
+        float y = 1 - 2 * (mouse.Y - sceneViewPosition.Y) / sceneViewSize.Y;
         Vector3 direction = Vector3.Normalize(forward + (right * x + up * y) * MathF.Tan(MathF.PI / 6));
-        selectedObject = PickTrigger(mouse) ?? FindObject(cameraPosition, direction);
+        SelectSceneObject(PickTrigger(mouse) ?? FindObject(cameraPosition, direction));
         if (selectedObject != null) ImGui.OpenPopup("Object menu");
     }
 
@@ -441,22 +444,24 @@ public sealed partial class Viewer : GameWindow
         if (scene == null) return null;
         SceneObject? found = null;
         float nearest = float.PositiveInfinity;
-        var meshes = new List<MeshData>();
-        if (collisionMode != DisplayMode.Disabled) meshes.Add(scene.Collision);
-        if (scene.ActorCollision.Mode != DisplayMode.Disabled) meshes.Add(scene.ActorCollision.Mesh);
+        var meshes = new List<(MeshData Mesh, bool Enabled, bool ForceWithModel)>();
+        meshes.Add((scene.Collision, collisionMode != DisplayMode.Disabled, false));
+        meshes.Add((scene.ActorCollision.Mesh, scene.ActorCollision.Mode != DisplayMode.Disabled, false));
         foreach (SceneLayer layer in scene.AreaLayers)
         {
-            if (layer.Mode != DisplayMode.Disabled) meshes.Add(layer.Mesh);
+            meshes.Add((layer.Mesh, layer.Mode != DisplayMode.Disabled, true));
         }
         foreach (var group in scene.Triggers.Values)
         {
             foreach (SceneTrigger trigger in group)
-                if (trigger.Layer != null && ShowTrigger(trigger)) meshes.Add(trigger.Layer.Mesh);
+                if (trigger.Layer != null && ShowTrigger(trigger)) meshes.Add((trigger.Layer.Mesh, true, true));
         }
-        foreach (MeshData mesh in meshes)
+        foreach (var entry in meshes)
         {
-            foreach (MeshPart part in mesh.Parts)
+            foreach (MeshPart part in entry.Mesh.Parts)
             {
+                bool forced = part.Object.ForceVisible && (entry.ForceWithModel || !part.Object.HasModel);
+                if (!entry.Enabled && !forced) continue;
                 float distance = part.HitDistance(origin, direction);
                 if (distance < nearest)
                 {
@@ -465,10 +470,11 @@ public sealed partial class Viewer : GameWindow
                 }
             }
         }
-        if (modelsVisible && models != null)
+        if ((modelsVisible || visibilityOverrides.Count > 0) && models != null)
         {
             foreach (ModelInstance instance in models.Instances)
             {
+                if (!modelsVisible && !instance.Object.ForceVisible) continue;
                 float distance = instance.HitDistance(origin, direction);
                 if (distance < nearest)
                 {
@@ -507,7 +513,7 @@ public sealed partial class Viewer : GameWindow
                 triggerTypes[selectedObject.Name] = false;
                 if (highlightedObject?.Name == selectedObject.Name) highlightedObject = null;
             }
-            if (ImGui.MenuItem(selectedObject.Trigger == null ? "Conditions" : "Details")) InspectObject(selectedObject);
+            if (ImGui.MenuItem("Inspect")) InspectObject(selectedObject);
             if (selectedObject.Area != null && ImGui.MenuItem("Area details"))
             {
                 selectedArea = selectedObject.Area;
@@ -579,8 +585,8 @@ public sealed partial class Viewer : GameWindow
                     ImGui.TextWrapped(field.Key + ": " + FormatAreaField(field.Value));
                 }
             }
-            ImGui.TextWrapped("Authored placement. Use Conditions for switch preview and links.");
-            if (ImGui.Button("Conditions")) InspectObject(selectedArea.Object);
+            ImGui.TextWrapped("Authored placement. Use the inspector for switch preview and links.");
+            if (ImGui.Button("Inspect")) InspectObject(selectedArea.Object);
         }
         ImGui.End();
     }
@@ -647,6 +653,7 @@ public sealed partial class Viewer : GameWindow
             }
 
             if (ImGui.MenuItem("Unhide all", "", false, hiddenObjects.Count > 0)) UnhideAll();
+            if (ImGui.MenuItem("Hierarchy and inspector", "", sidebarVisible)) sidebarVisible = !sidebarVisible;
             DrawConditionMenu();
             DrawTriggerMenu();
             if (ImGui.MenuItem("Conditional outlines", "", conditionalOutlinesVisible))
@@ -855,6 +862,8 @@ public sealed partial class Viewer : GameWindow
 
         ui.Begin(this, (float)e.Time, lookingAround);
         DrawMenuBar();
+        UpdateSceneView();
+        DrawSidebar();
         DrawSceneDialog();
         DrawAbout();
         DrawUpdates();
@@ -862,18 +871,25 @@ public sealed partial class Viewer : GameWindow
         PickObject();
         DrawObjectMenu();
         DrawAreaDetails();
-        DrawConditionWindows();
         GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
         GL.ClearColor(0, 0, 0, 1);
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         Vector3 forward = GetCameraDirection();
         Matrix4x4 view = Matrix4x4.CreateLookAt(cameraPosition, cameraPosition + forward, Vector3.UnitY);
         Matrix4x4 projection = CreateProjection();
-        if (modelsVisible) modelRenderer.Draw(view * projection);
+        float scaleX = (float)FramebufferSize.X / ClientSize.X;
+        float scaleY = (float)FramebufferSize.Y / ClientSize.Y;
+        int left = (int)(sceneViewPosition.X * scaleX);
+        int top = (int)(sceneViewPosition.Y * scaleY);
+        GL.Viewport(left, 0, Math.Max(1, FramebufferSize.X - left), Math.Max(1, FramebufferSize.Y - top));
+        if (modelsVisible || visibilityOverrides.Count > 0) modelRenderer.Draw(view * projection, modelsVisible);
         UpdateTriggerLayers();
         renderer.Draw(view * projection, cameraPosition, forward, collisionMode, collisionShaded);
+        var overlay = ImGui.GetBackgroundDrawList();
+        overlay.PushClipRect(sceneViewPosition, sceneViewPosition + sceneViewSize, true);
         DrawConditionOutlines(view * projection);
         DrawTriggers(view * projection);
+        overlay.PopClipRect();
         ui.End();
         SwapBuffers();
     }
@@ -883,7 +899,7 @@ public sealed partial class Viewer : GameWindow
         float near = 0.05f;
         float far = 100000;
         float focalLength = 1 / MathF.Tan(MathF.PI / 6);
-        float aspect = (float)ClientSize.X / ClientSize.Y;
+        float aspect = sceneViewSize.X / sceneViewSize.Y;
         return new Matrix4x4(focalLength / aspect, 0, 0, 0, 0, focalLength, 0, 0, 0, 0, (far + near) / (near - far), -1, 0, 0, 2 * far * near / (near - far), 0);
     }
 

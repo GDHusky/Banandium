@@ -5,9 +5,7 @@ namespace Banandium;
 
 public sealed partial class Viewer
 {
-    private SceneObject? inspectedObject;
     private SceneObject? highlightedObject;
-    private bool showConditions;
     private bool conditionalOutlinesVisible;
 
     private void AttachModelConditions()
@@ -62,76 +60,16 @@ public sealed partial class Viewer
             RefreshConditions();
         }
         ImGui.Separator();
-        if (ImGui.MenuItem("Conditions inspector")) showConditions = true;
+        if (ImGui.MenuItem("Inspector")) sidebarVisible = true;
         if (ImGui.MenuItem("Clear highlight", "", false, highlightedObject != null)) highlightedObject = null;
         ImGui.EndMenu();
     }
 
     private void InspectObject(SceneObject item)
     {
-        selectedObject = item;
-        inspectedObject = item;
-        highlightedObject = item;
-        showConditions = true;
+        sidebarVisible = true;
+        SelectSceneObject(item);
         ReleaseMouse();
-    }
-
-    private void DrawConditionWindows()
-    {
-        if (scene == null) return;
-        if (showConditions)
-        {
-            ImGui.SetNextWindowPos(new Vector2(20, 55), ImGuiCond.FirstUseEver);
-            ImGui.SetNextWindowSize(new Vector2(520, 570), ImGuiCond.FirstUseEver);
-            if (ImGui.Begin("Conditions", ref showConditions)) DrawConditions();
-            ImGui.End();
-        }
-    }
-
-    private void DrawConditions()
-    {
-        if (scene == null) return;
-        if (inspectedObject == null)
-        {
-            ImGui.TextWrapped("Click an object, or choose a placement below");
-            foreach (SceneObject item in scene.Conditions.Objects.Values)
-            {
-                if (!item.IsConditional) continue;
-                ImGui.PushID(item.Key);
-                if (ImGui.Selectable(item.Name + " / " + item.Fields.GetValueOrDefault("Id"))) InspectObject(item);
-                ImGui.PopID();
-            }
-            return;
-        }
-        SceneObject selected = inspectedObject;
-        ImGui.TextUnformatted(selected.Name);
-        if (selected.Trigger != null)
-        {
-            ImGui.TextUnformatted("Trigger type: " + selected.Name);
-            ImGui.TextUnformatted(selected.Trigger.Surface == null ? "Placement marker; activation bounds unknown" : "Authored area volume");
-        }
-        ImGui.TextWrapped("Id: " + selected.Fields.GetValueOrDefault("Id", "Not available"));
-        ImGui.TextWrapped("Preview: " + (selected.Condition == ConditionState.Unconditional ? "No placement condition" : selected.Condition.ToString()));
-        if (selected.Hidden) ImGui.TextDisabled("Hidden manually");
-        if (selected.Filtered) ImGui.TextDisabled("Excluded by Unconditional only");
-        ImGui.BeginDisabled(!selected.HasBounds && !selected.HasPosition);
-        if (ImGui.Button("Focus")) FocusObject(selected);
-        ImGui.EndDisabled();
-
-        ImGui.SameLine();
-        if (ImGui.Button("All conditional placements")) inspectedObject = null;
-        ImGui.Separator();
-        if (selected.Name.StartsWith("ChangeLevelArea", StringComparison.Ordinal))
-        {
-            string destination = selected.Fields.GetValueOrDefault("StageName") as string ?? "";
-            ImGui.TextWrapped("Destination scene: " + (destination == "" ? "Not specified in this placement" : destination));
-            ImGui.TextWrapped("IntervalIndex: " + FormatAreaField(selected.Fields.GetValueOrDefault("IntervalIndex")));
-        }
-        if (ImGui.CollapsingHeader("Placement fields"))
-        {
-            foreach (var field in selected.Fields)
-                if (field.Key != "Links") ImGui.TextWrapped(field.Key + ": " + FormatAreaField(field.Value));
-        }
     }
 
     private SceneObject? SelectedSwitch()
@@ -181,8 +119,8 @@ public sealed partial class Viewer
         if (scene == null) return false;
         if (item.Hidden || item.Filtered) return false;
         if (item.Trigger != null && item.Area == null && !ShowTrigger(item.Trigger)) return false;
-        if (item.IsConditional && !conditionalOutlinesVisible) return false;
         if (item == highlightedObject) return item.HasBounds || item.HasPosition;
+        if (item.IsConditional && !conditionalOutlinesVisible) return false;
         if (!item.IsConditional) return false;
         if (item.Trigger != null && item.Area == null) return true;
         if (item.Area != null)
@@ -198,7 +136,7 @@ public sealed partial class Viewer
     {
         if (scene == null) return;
         var draw = ImGui.GetBackgroundDrawList();
-        foreach (SceneObject item in scene.Conditions.Objects.Values)
+        foreach (SceneObject item in hierarchyObjects)
         {
             if (!ShowConditionOutline(item)) continue;
             Vector3 color = scene.ActorCollision.Color;
@@ -225,7 +163,7 @@ public sealed partial class Viewer
         Vector4 clip = Vector4.Transform(new Vector4(point, 1), matrix);
         screen = Vector2.Zero;
         if (clip.W <= .05f) return false;
-        screen = new Vector2((clip.X / clip.W + 1) * ClientSize.X * .5f, (1 - clip.Y / clip.W) * ClientSize.Y * .5f);
+        screen = SceneScreenPoint(clip);
         return true;
     }
 
@@ -245,8 +183,8 @@ public sealed partial class Viewer
         first = Vector4.Lerp(Vector4.Transform(new Vector4(a, 1), matrix), last, low);
         last = Vector4.Lerp(Vector4.Transform(new Vector4(a, 1), matrix), last, high);
         if (first.W <= 0 || last.W <= 0) return;
-        Vector2 start = new Vector2((first.X / first.W + 1) * ClientSize.X * .5f, (1 - first.Y / first.W) * ClientSize.Y * .5f);
-        Vector2 end = new Vector2((last.X / last.W + 1) * ClientSize.X * .5f, (1 - last.Y / last.W) * ClientSize.Y * .5f);
+        Vector2 start = SceneScreenPoint(first);
+        Vector2 end = SceneScreenPoint(last);
         if (!dashed) { draw.AddLine(start, end, color, 2); return; }
         float length = Vector2.Distance(start, end);
         if (length < .01f) return;

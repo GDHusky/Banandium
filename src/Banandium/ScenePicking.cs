@@ -6,6 +6,7 @@ public sealed class SceneObject
 {
     public string Name { get; }
     public bool Hidden;
+    public bool ForceVisible;
     public SceneArea? Area;
     public bool IsAreaPlacement;
     public SceneTrigger? Trigger;

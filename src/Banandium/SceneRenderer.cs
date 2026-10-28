@@ -58,13 +58,18 @@ public sealed class SceneRenderer : IDisposable
         public int Count;
         public DisplayMode LastMode;
         public bool LastShaded;
-        public Batch(SceneLayer layer, int first)
+        public DisplayMode HiddenMode;
+        public bool Forced;
+        public DisplayMode Mode { get { return Forced && Layer.Mode == DisplayMode.Disabled ? HiddenMode : Layer.Mode; } }
+        public Batch(SceneLayer layer, int first, List<Vector3> vertices, bool forced, DisplayMode hiddenMode)
         {
             Layer = layer;
             First = first;
-            Vertices = layer.Mesh.VisibleVertices();
+            Vertices = vertices;
+            Forced = forced;
+            HiddenMode = hiddenMode;
             Count = Vertices.Count;
-            LastMode = layer.Mode;
+            LastMode = Mode;
             LastShaded = layer.Shaded;
         }
     }
@@ -145,24 +150,17 @@ public sealed class SceneRenderer : IDisposable
     {
         batches.Clear();
         var collision = new SceneLayer("Collision", new Vector3(.38f, .72f, .83f));
-        collision.Mesh.Vertices.AddRange(scene.Collision.VisibleVertices());
-        batches.Add(new Batch(collision, 0));
-        int count = collision.Mesh.Vertices.Count;
-        batches.Add(new Batch(scene.ActorCollision, count));
-        count += batches[^1].Count;
+        collision.Mesh.Vertices.AddRange(scene.Collision.Vertices);
+        collision.Mesh.Parts.AddRange(scene.Collision.Parts);
+        int count = 0;
+        AddLayer(collision, ref count, DisplayMode.Opaque, false);
+        AddLayer(scene.ActorCollision, ref count, DisplayMode.SemiTransparent, false);
         foreach (SceneLayer layer in scene.AreaLayers)
-        {
-            batches.Add(new Batch(layer, count));
-            count += batches[^1].Count;
-        }
+            AddLayer(layer, ref count, DisplayMode.SemiTransparent, true);
         foreach (var group in scene.Triggers.Values)
         {
             foreach (SceneTrigger trigger in group)
-            {
-                if (trigger.Layer == null) continue;
-                batches.Add(new Batch(trigger.Layer, count));
-                count += batches[^1].Count;
-            }
+                if (trigger.Layer != null) AddLayer(trigger.Layer, ref count, DisplayMode.SemiTransparent, true);
         }
         vertices = new float[count * 10];
         centers = new Vector3[count / 3];
@@ -200,6 +198,24 @@ public sealed class SceneRenderer : IDisposable
         transparentLayersChanged = true;
     }
 
+    private void AddLayer(SceneLayer layer, ref int count, DisplayMode hiddenMode, bool forceWithModel)
+    {
+        var normal = new List<Vector3>();
+        var forced = new List<Vector3>();
+        if (layer.Mesh.Parts.Count == 0) normal.AddRange(layer.Mesh.Vertices);
+        foreach (MeshPart part in layer.Mesh.Parts)
+        {
+            if (!part.Object.Visible) continue;
+            List<Vector3> target = part.Object.ForceVisible && (forceWithModel || !part.Object.HasModel) ? forced : normal;
+            for (int i = part.First; i < part.First + part.Count; i++) target.Add(layer.Mesh.Vertices[i]);
+        }
+        batches.Add(new Batch(layer, count, normal, false, hiddenMode));
+        count += normal.Count;
+        if (forced.Count == 0) return;
+        batches.Add(new Batch(layer, count, forced, true, hiddenMode));
+        count += forced.Count;
+    }
+
     private void UploadVertices()
     {
         GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
@@ -221,15 +237,15 @@ public sealed class SceneRenderer : IDisposable
         bool anyVisible = false;
         foreach (Batch batch in batches)
         {
-            if (batch.Layer.Mode != batch.LastMode) modesChanged = true;
-            if (batch.Count > 0 && batch.Layer.Mode != DisplayMode.Disabled) anyVisible = true;
+            if (batch.Mode != batch.LastMode) modesChanged = true;
+            if (batch.Count > 0 && batch.Mode != DisplayMode.Disabled) anyVisible = true;
             if (batch.Layer.Shaded != batch.LastShaded)
             {
                 shadingChanged = true;
                 for (int i = batch.First; i < batch.First + batch.Count; i++)
                     vertices[i * 10 + 9] = batch.Layer.Shaded ? 1 : 0;
             }
-            batch.LastMode = batch.Layer.Mode;
+            batch.LastMode = batch.Mode;
             batch.LastShaded = batch.Layer.Shaded;
         }
         if (shadingChanged) UploadVertices();
@@ -241,7 +257,7 @@ public sealed class SceneRenderer : IDisposable
             transparentTriangles.Clear();
             foreach (Batch batch in batches)
             {
-                if (batch.Layer.Mode != DisplayMode.SemiTransparent) continue;
+                if (batch.Mode != DisplayMode.SemiTransparent) continue;
                 for (int triangle = batch.First / 3; triangle < (batch.First + batch.Count) / 3; triangle++)
                     transparentTriangles.Add(triangle);
             }
@@ -263,7 +279,7 @@ public sealed class SceneRenderer : IDisposable
         GL.Uniform1(alphaLocation, 1f);
         foreach (Batch batch in batches)
         {
-            if (batch.Layer.Mode == DisplayMode.Opaque)
+            if (batch.Mode == DisplayMode.Opaque)
                 GL.DrawArrays(PrimitiveType.Triangles, batch.First, batch.Count);
         }
         if (transparentTriangles.Count == 0)

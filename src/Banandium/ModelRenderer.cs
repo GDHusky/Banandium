@@ -160,7 +160,7 @@ public sealed class ModelRenderer : IDisposable
         return TextureWrapMode.ClampToEdge;
     }
 
-    public void Draw(Matrix4x4 matrix)
+    public void Draw(Matrix4x4 matrix, bool modelsVisible = true)
     {
         if (scene == null) return;
         GL.Enable(EnableCap.DepthTest);
@@ -178,6 +178,7 @@ public sealed class ModelRenderer : IDisposable
         foreach (DrawItem item in items)
         {
             ModelInstance instance = item.Instance;
+            if (!modelsVisible && !instance.Object.ForceVisible) continue;
             if (!instance.Object.Visible || !frustum.Intersects(item.Minimum, item.Maximum)) continue;
             ModelMesh mesh = instance.Mesh;
             MeshBuffers buffers = item.Buffers;
