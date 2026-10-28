@@ -25,6 +25,7 @@ public sealed partial class Viewer : GameWindow
     private string startupScene = "";
     private string selectedScene = "";
     private string sceneFilter = "";
+    private bool displayCommonNames = true;
     private string errorMessage = "";
     private bool openSceneDialog;
     private bool sceneDialogVisible;
@@ -753,20 +754,25 @@ public sealed partial class Viewer : GameWindow
 
         if (dump != null)
         {
+            ImGui.Checkbox("Display Common Names", ref displayCommonNames);
             ImGui.SetNextItemWidth(-1);
             ImGui.InputTextWithHint("##filter", "Filter scenes...", ref sceneFilter, 160);
             ImGui.BeginChild("scene-list", new Vector2(0, 330), ImGuiChildFlags.Borders);
             foreach (string name in dump.Scenes.Keys)
             {
-                if (!name.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase))
+                string commonName = SceneNames.GetCommonName(name);
+                if (!name.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase) &&
+                    !commonName.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                if (ImGui.Selectable(name, selectedScene == name))
+                ImGui.PushID(name);
+                if (ImGui.Selectable(displayCommonNames ? commonName : name, selectedScene == name))
                 {
                     selectedScene = name;
                 }
+                ImGui.PopID();
             }
 
             ImGui.EndChild();

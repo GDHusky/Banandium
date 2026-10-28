@@ -5,6 +5,7 @@ namespace Banandium;
 public sealed class ViewerSettings
 {
     public string RomfsPath { get; set; } = "";
+    public bool DisplayCommonNames { get; set; } = true;
     public bool TexturedModels { get; set; } = true;
     public DisplayMode CollisionMode { get; set; } = DisplayMode.Disabled;
     public bool CollisionShaded { get; set; } = true;
@@ -59,6 +60,7 @@ public sealed partial class Viewer
 
     private void RestoreSettings()
     {
+        displayCommonNames = settings.DisplayCommonNames;
         modelsVisible = settings.TexturedModels;
         collisionMode = settings.CollisionMode;
         collisionShaded = settings.CollisionShaded;
@@ -93,6 +95,7 @@ public sealed partial class Viewer
     private void SaveSettings()
     {
         RememberSceneSettings();
+        settings.DisplayCommonNames = displayCommonNames;
         settings.TexturedModels = modelsVisible;
         settings.CollisionMode = collisionMode;
         settings.CollisionShaded = collisionShaded;
