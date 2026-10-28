@@ -5,7 +5,7 @@ namespace Banandium;
 
 public sealed partial class Viewer
 {
-    private bool triggersVisible = true;
+    private bool triggersVisible;
     private DisplayMode triggerMode = DisplayMode.SemiTransparent;
     private bool triggersShaded = true;
     private Dictionary<string, bool> triggerTypes = new Dictionary<string, bool>(StringComparer.Ordinal);

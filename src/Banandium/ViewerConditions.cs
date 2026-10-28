@@ -8,7 +8,7 @@ public sealed partial class Viewer
     private SceneObject? inspectedObject;
     private SceneObject? highlightedObject;
     private bool showConditions;
-    private bool conditionalOutlinesVisible = true;
+    private bool conditionalOutlinesVisible;
 
     private void AttachModelConditions()
     {

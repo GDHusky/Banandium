@@ -5,11 +5,11 @@ namespace Banandium;
 public sealed class ViewerSettings
 {
     public string RomfsPath { get; set; } = "";
-    public bool TexturedModels { get; set; }
-    public DisplayMode CollisionMode { get; set; } = DisplayMode.Opaque;
+    public bool TexturedModels { get; set; } = true;
+    public DisplayMode CollisionMode { get; set; } = DisplayMode.Disabled;
     public bool CollisionShaded { get; set; } = true;
-    public bool ConditionalOutlines { get; set; } = true;
-    public bool TriggersVisible { get; set; } = true;
+    public bool ConditionalOutlines { get; set; }
+    public bool TriggersVisible { get; set; }
     public DisplayMode TriggerMode { get; set; } = DisplayMode.SemiTransparent;
     public bool TriggersShaded { get; set; } = true;
     public Dictionary<string, bool> TriggerTypes { get; set; } = new Dictionary<string, bool>();
@@ -49,7 +49,7 @@ public sealed class ViewerSettings
 
 public sealed class LayerSettings
 {
-    public DisplayMode Mode { get; set; }
+    public DisplayMode Mode { get; set; } = DisplayMode.Disabled;
     public bool Shaded { get; set; }
 }
 

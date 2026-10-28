@@ -14,7 +14,7 @@ public sealed partial class Viewer : GameWindow
     private ModelRenderer modelRenderer = null!;
     private SceneModels? models;
     private Task<SceneModels>? modelLoading;
-    private bool modelsVisible;
+    private bool modelsVisible = true;
     private Dump? dump;
     private SceneData? scene;
     private Task<Dump>? indexing;
@@ -33,7 +33,7 @@ public sealed partial class Viewer : GameWindow
     private bool updatesVisible;
     private Task<UpdateResult>? updateCheck;
     private UpdateResult updateResult = new UpdateResult("Not checked yet");
-    private DisplayMode collisionMode = DisplayMode.Opaque;
+    private DisplayMode collisionMode = DisplayMode.Disabled;
     private bool collisionShaded = true;
     private Vector3 cameraPosition = new Vector3(30, 20, 30);
     private float cameraYaw = -135;

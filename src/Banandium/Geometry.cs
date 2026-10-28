@@ -156,7 +156,7 @@ public sealed class SceneData
     public MeshData IgnoreAreas { get; set; } = new MeshData();
     public int IgnoreAreaCount { get; set; }
     public List<SceneLayer> AreaLayers { get; set; } = new List<SceneLayer>();
-    public SceneLayer ActorCollision { get; } = new SceneLayer("Actor collision", new Vector3(1, .65f, .15f)) { Mode = DisplayMode.SemiTransparent };
+    public SceneLayer ActorCollision { get; } = new SceneLayer("Actor collision", new Vector3(1, .65f, .15f));
     public SceneConditions Conditions { get; set; } = new SceneConditions();
     public List<SceneArea> Areas { get; set; } = new List<SceneArea>();
     public SortedDictionary<string, List<SceneTrigger>> Triggers { get; set; } = new SortedDictionary<string, List<SceneTrigger>>(StringComparer.Ordinal);

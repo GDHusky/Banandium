@@ -84,7 +84,6 @@ public static class SceneAreas
             if (!layers.TryGetValue(area.Name, out SceneLayer? layer))
             {
                 layer = new SceneLayer(area.Name, GetColor(area.Family));
-                if (area.Family == "DeathArea") layer.Mode = DisplayMode.SemiTransparent;
                 layers.Add(area.Name, layer);
             }
             layer.Areas.Add(area);
