@@ -373,6 +373,16 @@ public sealed partial class Viewer : GameWindow
             movement -= right;
         }
 
+        if (KeyboardState.IsKeyDown(Keys.Space))
+        {
+            movement += Vector3.UnitY;
+        }
+
+        if (KeyboardState.IsKeyDown(Keys.LeftShift))
+        {
+            movement -= Vector3.UnitY;
+        }
+
         if (movement.LengthSquared() > 0)
         {
             float elapsed = (float)Math.Min(e.Time, 0.1);
