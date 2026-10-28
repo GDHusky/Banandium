@@ -35,9 +35,9 @@ public static class Shaders
         return p;
     }
 
-    public static void Matrix(int location, Matrix4x4 m)
+    public static unsafe void Matrix(int location, Matrix4x4 m)
     {
-        GL.UniformMatrix4(location, 1, false, new[] { m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24, m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44 });
+        GL.UniformMatrix4(location, 1, false, (float*)&m);
     }
 }
 
@@ -70,12 +70,15 @@ public sealed class SceneRenderer : IDisposable
     }
 
     private readonly int program, vao, vbo, ebo;
+    private readonly int matrixLocation, eyeLocation, lightLocation, alphaLocation;
+    private readonly List<int> transparentTriangles = new List<int>();
+    private readonly List<int> sortedTriangles = new List<int>();
+    private bool transparentLayersChanged = true;
     private readonly List<Batch> batches = new List<Batch>();
     private Vector3[] centers = [];
     private uint[] order = [];
     private float[] vertices = [];
     private float[] triangleDepths = [];
-    private int[] triangleLayers = [];
     private Vector3 lastEye = new Vector3(float.NaN);
     private Vector3 lastForward;
     private int sortedCount;
@@ -120,6 +123,10 @@ public sealed class SceneRenderer : IDisposable
             color = vec4(surfaceColor * light, alpha);
         }
         """);
+        matrixLocation = GL.GetUniformLocation(program, "matrix");
+        eyeLocation = GL.GetUniformLocation(program, "eye");
+        lightLocation = GL.GetUniformLocation(program, "lightDirection");
+        alphaLocation = GL.GetUniformLocation(program, "alpha");
         vao = GL.GenVertexArray();
         vbo = GL.GenBuffer();
         ebo = GL.GenBuffer();
@@ -159,7 +166,6 @@ public sealed class SceneRenderer : IDisposable
         }
         vertices = new float[count * 10];
         centers = new Vector3[count / 3];
-        triangleLayers = new int[count / 3];
         order = new uint[count];
         triangleDepths = new float[count / 3];
         for (int layerIndex = 0; layerIndex < batches.Count; layerIndex++)
@@ -171,7 +177,6 @@ public sealed class SceneRenderer : IDisposable
                 Vector3 normal = Vector3.Normalize(Vector3.Cross(mesh[i + 1] - mesh[i], mesh[i + 2] - mesh[i]));
                 int triangle = (batch.First + i) / 3;
                 centers[triangle] = (mesh[i] + mesh[i + 1] + mesh[i + 2]) / 3;
-                triangleLayers[triangle] = layerIndex;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     int offset = (batch.First + i + corner) * 10;
@@ -192,6 +197,7 @@ public sealed class SceneRenderer : IDisposable
         }
         UploadVertices();
         lastEye = new Vector3(float.NaN);
+        transparentLayersChanged = true;
     }
 
     private void UploadVertices()
@@ -212,9 +218,11 @@ public sealed class SceneRenderer : IDisposable
         batches[0].Layer.Shaded = collisionShaded;
         bool modesChanged = false;
         bool shadingChanged = false;
+        bool anyVisible = false;
         foreach (Batch batch in batches)
         {
             if (batch.Layer.Mode != batch.LastMode) modesChanged = true;
+            if (batch.Count > 0 && batch.Layer.Mode != DisplayMode.Disabled) anyVisible = true;
             if (batch.Layer.Shaded != batch.LastShaded)
             {
                 shadingChanged = true;
@@ -225,37 +233,54 @@ public sealed class SceneRenderer : IDisposable
             batch.LastShaded = batch.Layer.Shaded;
         }
         if (shadingChanged) UploadVertices();
+        if (modesChanged) transparentLayersChanged = true;
+        if (!anyVisible) return;
+        bool rebuildOrder = transparentLayersChanged;
+        if (transparentLayersChanged)
+        {
+            transparentTriangles.Clear();
+            foreach (Batch batch in batches)
+            {
+                if (batch.Layer.Mode != DisplayMode.SemiTransparent) continue;
+                for (int triangle = batch.First / 3; triangle < (batch.First + batch.Count) / 3; triangle++)
+                    transparentTriangles.Add(triangle);
+            }
+            transparentLayersChanged = false;
+        }
         GL.Enable(EnableCap.DepthTest);
         GL.DepthFunc(DepthFunction.Lequal);
         GL.DepthMask(true);
         GL.Disable(EnableCap.CullFace);
         GL.Disable(EnableCap.Blend);
         GL.UseProgram(program);
-        Shaders.Matrix(GL.GetUniformLocation(program, "matrix"), matrix);
-        GL.Uniform3(GL.GetUniformLocation(program, "eye"), eye.X, eye.Y, eye.Z);
+        Shaders.Matrix(matrixLocation, matrix);
+        GL.Uniform3(eyeLocation, eye.X, eye.Y, eye.Z);
         Vector3 right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
         Vector3 up = Vector3.Normalize(Vector3.Cross(right, forward));
         Vector3 light = Vector3.Normalize(-forward + up * .8f - right * .6f);
-        GL.Uniform3(GL.GetUniformLocation(program, "lightDirection"), light.X, light.Y, light.Z);
+        GL.Uniform3(lightLocation, light.X, light.Y, light.Z);
         GL.BindVertexArray(vao);
-        GL.Uniform1(GL.GetUniformLocation(program, "alpha"), 1f);
+        GL.Uniform1(alphaLocation, 1f);
         foreach (Batch batch in batches)
         {
             if (batch.Layer.Mode == DisplayMode.Opaque)
                 GL.DrawArrays(PrimitiveType.Triangles, batch.First, batch.Count);
         }
-        if (modesChanged || eye != lastEye || forward != lastForward)
+        if (transparentTriangles.Count == 0)
         {
-            List<int> triangles = new List<int>();
-            for (int triangle = 0; triangle < centers.Length; triangle++)
-            {
-                if (batches[triangleLayers[triangle]].Layer.Mode == DisplayMode.SemiTransparent)
-                    triangles.Add(triangle);
+            GL.BindVertexArray(0);
+            GL.UseProgram(0);
+            return;
+        }
+        if (rebuildOrder || eye != lastEye || forward != lastForward)
+        {
+            foreach (int triangle in transparentTriangles)
                 triangleDepths[triangle] = Vector3.Dot(centers[triangle] - eye, forward);
-            }
-            triangles.Sort(CompareDepth);
+            sortedTriangles.Clear();
+            sortedTriangles.AddRange(transparentTriangles);
+            sortedTriangles.Sort(CompareDepth);
             sortedCount = 0;
-            foreach (int triangle in triangles)
+            foreach (int triangle in sortedTriangles)
             {
                 order[sortedCount++] = (uint)triangle * 3;
                 order[sortedCount++] = (uint)triangle * 3 + 1;
@@ -269,7 +294,7 @@ public sealed class SceneRenderer : IDisposable
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         GL.DepthMask(false);
-        GL.Uniform1(GL.GetUniformLocation(program, "alpha"), .28f);
+        GL.Uniform1(alphaLocation, .28f);
         GL.DrawElements(PrimitiveType.Triangles, sortedCount, DrawElementsType.UnsignedInt, 0);
         GL.DepthMask(true);
         GL.Disable(EnableCap.Blend);

@@ -6,8 +6,37 @@ namespace Banandium;
 
 public sealed class ModelRenderer : IDisposable
 {
-    private sealed record MeshBuffers(int Vao, int Vbo, int Ebo);
+    private sealed record MeshBuffers(int Vao, int Vbo, int Ebo, Vector3 Minimum, Vector3 Maximum,
+        int Color, int Opacity, int Sampler);
+
+    private sealed class DrawItem
+    {
+        public ModelInstance Instance;
+        public MeshBuffers Buffers;
+        public Vector3 Minimum = new Vector3(float.PositiveInfinity);
+        public Vector3 Maximum = new Vector3(float.NegativeInfinity);
+
+        public DrawItem(ModelInstance instance, MeshBuffers buffers)
+        {
+            Instance = instance;
+            Buffers = buffers;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 corner = new Vector3((i & 1) == 0 ? buffers.Minimum.X : buffers.Maximum.X,
+                    (i & 2) == 0 ? buffers.Minimum.Y : buffers.Maximum.Y,
+                    (i & 4) == 0 ? buffers.Minimum.Z : buffers.Maximum.Z);
+                Vector3 point = Vector3.Transform(corner, instance.Transform);
+                Minimum = Vector3.Min(Minimum, point);
+                Maximum = Vector3.Max(Maximum, point);
+            }
+        }
+    }
+
     private readonly int program;
+    private readonly int matrixLocation, modelLocation, tintLocation;
+    private readonly List<DrawItem> items = new List<DrawItem>();
+    private readonly ViewFrustum frustum = new ViewFrustum();
+    private readonly Dictionary<(TextureWrapMode X, TextureWrapMode Y), int> samplers = new Dictionary<(TextureWrapMode, TextureWrapMode), int>();
     private readonly Dictionary<ModelMesh, MeshBuffers> meshes = new Dictionary<ModelMesh, MeshBuffers>();
     private readonly Dictionary<ModelTexture, int> textures = new Dictionary<ModelTexture, int>();
     private readonly int white;
@@ -50,6 +79,13 @@ public sealed class ModelRenderer : IDisposable
             color = vec4(pow(max(sampleColor.rgb * tint.rgb * surfaceTint.rgb * light, vec3(0)), vec3(1.0 / 2.2)), 1);
         }
         """);
+        matrixLocation = GL.GetUniformLocation(program, "matrix");
+        modelLocation = GL.GetUniformLocation(program, "model");
+        tintLocation = GL.GetUniformLocation(program, "tint");
+        GL.UseProgram(program);
+        GL.Uniform1(GL.GetUniformLocation(program, "albedo"), 0);
+        GL.Uniform1(GL.GetUniformLocation(program, "opacity"), 1);
+        GL.UseProgram(0);
         white = UploadTexture(new ModelTexture(1, 1, new byte[] {255, 255, 255, 255}));
     }
 
@@ -63,7 +99,6 @@ public sealed class ModelRenderer : IDisposable
             ModelMesh mesh = instance.Mesh;
             if (meshes.ContainsKey(mesh)) continue;
             int vao = GL.GenVertexArray(), vbo = GL.GenBuffer(), ebo = GL.GenBuffer();
-            meshes.Add(mesh, new MeshBuffers(vao, vbo, ebo));
             GL.BindVertexArray(vao);
             GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
             GL.BufferData(BufferTarget.ArrayBuffer, mesh.Vertices.Length * sizeof(float), mesh.Vertices, BufferUsageHint.StaticDraw);
@@ -76,8 +111,34 @@ public sealed class ModelRenderer : IDisposable
             GL.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, 48, 32);
             foreach (ModelTexture? texture in new[] { mesh.Color, mesh.Opacity })
                 if (texture != null && !textures.ContainsKey(texture)) textures.Add(texture, UploadTexture(texture));
+            Vector3 minimum = new Vector3(float.PositiveInfinity);
+            Vector3 maximum = new Vector3(float.NegativeInfinity);
+            for (int i = 0; i < mesh.Vertices.Length; i += 12)
+            {
+                Vector3 point = new Vector3(mesh.Vertices[i], mesh.Vertices[i + 1], mesh.Vertices[i + 2]);
+                minimum = Vector3.Min(minimum, point);
+                maximum = Vector3.Max(maximum, point);
+            }
+            int color = mesh.Color == null ? white : textures[mesh.Color];
+            int opacity = mesh.Opacity == null ? white : textures[mesh.Opacity];
+            meshes.Add(mesh, new MeshBuffers(vao, vbo, ebo, minimum, maximum, color, opacity, GetSampler(mesh)));
         }
+        foreach (ModelInstance instance in scene.Instances)
+            items.Add(new DrawItem(instance, meshes[instance.Mesh]));
         GL.BindVertexArray(0);
+    }
+
+    private int GetSampler(ModelMesh mesh)
+    {
+        var wrap = (X: Wrap(mesh.WrapX), Y: Wrap(mesh.WrapY));
+        if (samplers.TryGetValue(wrap, out int sampler)) return sampler;
+        sampler = GL.GenSampler();
+        GL.SamplerParameter(sampler, SamplerParameterName.TextureWrapS, (int)wrap.X);
+        GL.SamplerParameter(sampler, SamplerParameterName.TextureWrapT, (int)wrap.Y);
+        GL.SamplerParameter(sampler, SamplerParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+        GL.SamplerParameter(sampler, SamplerParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+        samplers.Add(wrap, sampler);
+        return sampler;
     }
 
     private static int UploadTexture(ModelTexture texture)
@@ -110,28 +171,51 @@ public sealed class ModelRenderer : IDisposable
         GL.Enable(EnableCap.PolygonOffsetFill);
         GL.PolygonOffset(1f, 1f);
         GL.UseProgram(program);
-        Shaders.Matrix(GL.GetUniformLocation(program, "matrix"), matrix);
-        GL.Uniform1(GL.GetUniformLocation(program, "albedo"), 0);
-        GL.Uniform1(GL.GetUniformLocation(program, "opacity"), 1);
-        foreach (ModelInstance instance in scene.Instances)
+        Shaders.Matrix(matrixLocation, matrix);
+        frustum.Update(matrix);
+        int lastVao = -1, lastColor = -1, lastOpacity = -1, lastSampler = -1;
+        Vector4 lastTint = new Vector4(float.NaN);
+        foreach (DrawItem item in items)
         {
-            if (!instance.Object.Visible) continue;
+            ModelInstance instance = item.Instance;
+            if (!instance.Object.Visible || !frustum.Intersects(item.Minimum, item.Maximum)) continue;
             ModelMesh mesh = instance.Mesh;
+            MeshBuffers buffers = item.Buffers;
             Vector4 tint = mesh.Tint;
             if (mesh.UsePlacementColor && instance.MaterialColor.HasValue) tint = instance.MaterialColor.Value;
-            GL.Uniform4(GL.GetUniformLocation(program, "tint"), tint.X, tint.Y, tint.Z, tint.W);
-            Shaders.Matrix(GL.GetUniformLocation(program, "model"), instance.Transform);
-            GL.BindVertexArray(meshes[mesh].Vao);
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, mesh.Color == null ? white : textures[mesh.Color]);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)Wrap(mesh.WrapX));
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)Wrap(mesh.WrapY));
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, mesh.Opacity == null ? white : textures[mesh.Opacity]);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)Wrap(mesh.WrapX));
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)Wrap(mesh.WrapY));
+            if (tint != lastTint)
+            {
+                GL.Uniform4(tintLocation, tint.X, tint.Y, tint.Z, tint.W);
+                lastTint = tint;
+            }
+            Shaders.Matrix(modelLocation, instance.Transform);
+            if (buffers.Vao != lastVao)
+            {
+                GL.BindVertexArray(buffers.Vao);
+                lastVao = buffers.Vao;
+            }
+            if (buffers.Color != lastColor)
+            {
+                GL.ActiveTexture(TextureUnit.Texture0);
+                GL.BindTexture(TextureTarget.Texture2D, buffers.Color);
+                lastColor = buffers.Color;
+            }
+            if (buffers.Opacity != lastOpacity)
+            {
+                GL.ActiveTexture(TextureUnit.Texture1);
+                GL.BindTexture(TextureTarget.Texture2D, buffers.Opacity);
+                lastOpacity = buffers.Opacity;
+            }
+            if (buffers.Sampler != lastSampler)
+            {
+                GL.BindSampler(0, buffers.Sampler);
+                GL.BindSampler(1, buffers.Sampler);
+                lastSampler = buffers.Sampler;
+            }
             GL.DrawElements(PrimitiveType.Triangles, mesh.Indices.Length, DrawElementsType.UnsignedInt, 0);
         }
+        GL.BindSampler(0, 0);
+        GL.BindSampler(1, 0);
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.Disable(EnableCap.PolygonOffsetFill);
         GL.BindVertexArray(0);
@@ -148,6 +232,9 @@ public sealed class ModelRenderer : IDisposable
             GL.DeleteVertexArray(mesh.Vao);
         }
         foreach (int texture in textures.Values) GL.DeleteTexture(texture);
+        foreach (int sampler in samplers.Values) GL.DeleteSampler(sampler);
+        samplers.Clear();
+        items.Clear();
         meshes.Clear();
         textures.Clear();
     }
